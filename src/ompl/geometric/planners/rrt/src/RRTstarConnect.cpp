@@ -465,7 +465,8 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
         startTree = !startTree;
         TreeData &otherTree = startTree ? tStart_ : tGoal_;
 
-        if (tGoal_->size() == 0 || pis_.getSampledGoalsCount() < tGoal_->size() / 2)
+        if (pis_.getSampledGoalsCount() < goal->maxSampleCount())
+        // if (tGoal_->size() == 0 || pis_.getSampledGoalsCount() < tGoal_->size() / 2)
         {
             const base::State *st = tGoal_->size() == 0 ? pis_.nextGoal(ptc) : pis_.nextGoal();
             if (st != nullptr)
@@ -609,6 +610,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
     ptc.terminate();
 
     bool solutionFound = false;
+    std::cout << "RRTstarConnect::" << std::endl;
     if (approxsol && !solved)
     {
     	solutionFound = true;
@@ -631,8 +633,14 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
         psol.setPlannerName(getName());
 
         // If we don't have a goal motion, the solution is approximate
-        if (!(bestConnectionPoint_.first && bestConnectionPoint_.second))
+        // if (!(bestConnectionPoint_.first && bestConnectionPoint_.second))
             psol.setApproximate(approxdif);
+
+        std::cout << "  RRTstarConnect:: approxsol && !solved: "<< bool(approxsol && !solved) << std::endl;
+        std::cout << "    - psol isApproximate(): "<< psol.approximate_ << std::endl;
+        std::cout << "    - bestConnectionPoint_.first: "<< bool(bestConnectionPoint_.first) << std::endl;
+        std::cout << "    - bestConnectionPoint_.second: "<< bool(bestConnectionPoint_.second) << std::endl;
+        std::cout << "    - !(bestConnectionPoint_.first && bestConnectionPoint_.second): "<< !(bestConnectionPoint_.first && bestConnectionPoint_.second) << std::endl;
 
         // Does the solution satisfy the optimization objective?
         psol.setOptimized(opt_, approxsol->cost, opt_->isSatisfied(bestCost_));
@@ -674,6 +682,12 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
         if (!(bestConnectionPoint_.first && bestConnectionPoint_.second))
             psol.setApproximate(approxdif);
 
+        std::cout << "  RRTstarConnect:: bestConnectionPoint_.first && bestConnectionPoint_.second: "<< bool(bestConnectionPoint_.first && bestConnectionPoint_.second) << std::endl;
+        std::cout << "    - psol isApproximate(): "<< psol.approximate_ << std::endl;
+        std::cout << "    - bestConnectionPoint_.first: "<< bool(bestConnectionPoint_.first) << std::endl;
+        std::cout << "    - bestConnectionPoint_.second: "<< bool(bestConnectionPoint_.second) << std::endl;
+        std::cout << "    - !(bestConnectionPoint_.first && bestConnectionPoint_.second): "<< !(bestConnectionPoint_.first && bestConnectionPoint_.second) << std::endl;
+
         // Does the solution satisfy the optimization objective?
         psol.setOptimized(opt_, opt_->combineCosts(bestConnectionPoint_.first->cost, bestConnectionPoint_.second->cost), opt_->isSatisfied(bestCost_));
 
@@ -686,8 +700,12 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
                 "%.3f",
                 getName().c_str(), statesGenerated, tStart_->size() + tGoal_->size(),
                 tStart_->size(), tGoal_->size(), rewireTest, connectionPoints_.size(), bestCost_);
-
-	return base::PlannerStatus(solutionFound, bestConnectionPoint_.first== nullptr && bestConnectionPoint_.second== nullptr);
+    // OMPL_INFORM("solution found: %u, bestConnectionPoint_.first: %u, bestConnectionPoint_.second: %u, &&: %u",
+    //  bool(bestConnectionPoint_.first==nullptr), 
+    //  bool(bestConnectionPoint_.second==nullptr), 
+    //  bool(bestConnectionPoint_.first==nullptr && bestConnectionPoint_.second==nullptr));
+	return base::PlannerStatus(solutionFound, true);
+  	// return base::PlannerStatus(solutionFound, bestConnectionPoint_.first== nullptr || bestConnectionPoint_.second== nullptr);
 }
 
 void ompl::geometric::RRTstarConnect::removeFromParent(Motion *m)

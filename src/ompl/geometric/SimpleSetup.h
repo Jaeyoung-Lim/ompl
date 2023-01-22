@@ -140,6 +140,8 @@ namespace ompl
              * solution is exact (not approximate) */
             bool haveExactSolutionPath() const
             {
+                std::cout << "SimpleSetup::haveExactSolutionPath()" << std::endl;
+                std::cout << "  - pdef_->hasExactSolution()" <<  pdef_->hasExactSolution() << std::endl;
                 return pdef_->hasExactSolution();
             }
 

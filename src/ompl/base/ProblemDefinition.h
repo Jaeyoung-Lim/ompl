@@ -340,6 +340,9 @@ namespace ompl
              * !hasApproximateSolution() */
             bool hasExactSolution() const
             {
+                std::cout << "ProblemDefinition::haveExactSolutionPath()" << std::endl;
+                std::cout << "  - this->hasSolution(): " <<  this->hasSolution() << std::endl;
+                std::cout << "  - this->hasApproximateSolution(): " <<  this->hasApproximateSolution() << std::endl;
                 return this->hasSolution() && !this->hasApproximateSolution();
             }
 
