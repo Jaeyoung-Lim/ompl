@@ -704,8 +704,8 @@ ompl::base::PlannerStatus ompl::geometric::RRTstarConnect::solve(const base::Pla
     //  bool(bestConnectionPoint_.first==nullptr), 
     //  bool(bestConnectionPoint_.second==nullptr), 
     //  bool(bestConnectionPoint_.first==nullptr && bestConnectionPoint_.second==nullptr));
-	return base::PlannerStatus(solutionFound, true);
-  	// return base::PlannerStatus(solutionFound, bestConnectionPoint_.first== nullptr || bestConnectionPoint_.second== nullptr);
+	// return base::PlannerStatus(solutionFound, true);
+  	return base::PlannerStatus(solutionFound, bestConnectionPoint_.first== nullptr || bestConnectionPoint_.second== nullptr);
 }
 
 void ompl::geometric::RRTstarConnect::removeFromParent(Motion *m)
