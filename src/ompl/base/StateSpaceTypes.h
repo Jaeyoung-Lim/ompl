@@ -99,6 +99,8 @@ namespace ompl
             /** \brief ompl::base::TrochoidStateSpace */
             STATE_SPACE_TROCHOID = 17,
 
+            STATE_SPACE_TROCHOID_AIRPLANE = 18,
+
             /** \brief Number of state space types; To add new types,
                 use values that are larger than the count*/
             STATE_SPACE_TYPE_COUNT
