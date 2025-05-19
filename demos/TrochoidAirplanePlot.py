@@ -78,11 +78,9 @@ def getPath(exec_path, **kwargs):
 # 1. A 3D plot of the path as well as the spherical obstacles that the path avoids
 # 2. A plot of the X-, Y-, and Z-coordinate as a function of path waypoint index
 # 3. A plot of pitch and yaw as a function of path waypoint index
-def plotPath(path, radius):
-    fig = plt.figure("Path visualization", figsize=(4.0, 5.0))
-    axs = fig.add_subplot(1, 1, 1, projection='3d')
+def plotPath(axs, path, name):
     # updateProjection(axs, axs)
-    axs.plot(path[:,1], path[:,2], path[:,3], color='k')
+    axs.plot(path[:,1], path[:,2], path[:,3], label=name)
     axs.set_xlabel('X')
     axs.set_ylabel('Y')
     axs.set_zlabel('Z')
@@ -94,10 +92,7 @@ def plotPath(path, radius):
     # print("Path shape: ", path.shape)
     # axs[2].plot(path[:,4], color=cmap(0), label='yaw')
     # axs[2].set_ylabel('yaw')
-    plt.grid()
-    fig.tight_layout()
-    plt.show()
-    return axs
+    return
 
 # return the full path to the demo_DubinsAirplane executable or exit
 def findExecutable(exec_name='demo_TrochoidAirplane'):
@@ -130,7 +125,7 @@ if __name__ == "__main__":
     windHeading = 0.0
     windRatio = 0.3
     # change command line arguments for demo_TrochoidAirplane as needed here
-    path = getPath(exec_path, 
+    high_altitude_path = getPath(exec_path, 
                    trochoidairplane='',
                    radius=radius,
                    maxpitch=maxpitch,
@@ -138,8 +133,27 @@ if __name__ == "__main__":
                    windratio=windRatio,
                    start="0 0 0 0",
                    goal="2 2 10 0")
+
+    low_altitude_path = getPath(exec_path, 
+                   trochoidairplane='',
+                   radius=radius,
+                   maxpitch=maxpitch,
+                   windheading=windHeading,
+                   windratio=windRatio,
+                   start="0 0 0 0",
+                   goal="2 2 2 0")
+
     # or call readPath() on a precomputed path
     #path = readPath('/my/path.dat')
-    print(path)
+    print(high_altitude_path)
+    fig = plt.figure("Path visualization", figsize=(4.0, 4.2))
+    axs = fig.add_subplot(1, 1, 1, projection='3d')
 
-    plotPath(path, radius)
+    plotPath(axs, high_altitude_path, 'High Altitude')
+    plotPath(axs, low_altitude_path, 'Low Altitude')
+    axs.legend(loc='upper left')
+
+    # plt.grid()
+    fig.tight_layout()
+
+    plt.show()
