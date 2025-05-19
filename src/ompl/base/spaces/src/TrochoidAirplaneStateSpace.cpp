@@ -104,7 +104,7 @@ void TrochoidAirplaneStateSpace::registerProjections()
     registerDefaultProjection(std::make_shared<OwenDefaultProjection>(this));
 }
 
-TrochoidAirplaneStateSpace::PathType TrochoidAirplaneStateSpace::getPath(const State *state1, const State *state2) const
+std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::getPath(const State *state1, const State *state2) const
 {
     auto s1 = state1->as<StateType>();
     auto s2 = state2->as<StateType>();
@@ -178,8 +178,8 @@ void TrochoidAirplaneStateSpace::turn(const State *from, double turnRadius, doub
 double TrochoidAirplaneStateSpace::distance(const State *state1, const State *state2) const
 {
     ///TODO: Handle failure case
-    auto path = getPath(state1, state2);
-    return path.length();
+    if (auto path = getPath(state1, state2))
+        return path->length();
     return getMaximumExtent();
 }
 
@@ -190,12 +190,10 @@ unsigned int TrochoidAirplaneStateSpace::validSegmentCount(const State *state1, 
 
 void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to, double t, State *state) const
 {
-    auto path = getPath(from, to);
-    interpolate(from, to, t, path, state);
-
-    ///TODO: Handle failure
-    // if (from != state)
-    //     copyState(state, from);
+    if (auto path = getPath(from, to))
+        interpolate(from, to, t, *path, state);
+    else if (from != state)
+        copyState(state, from);
 }
 
 void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to, double t, PathType &path, State *state) const
