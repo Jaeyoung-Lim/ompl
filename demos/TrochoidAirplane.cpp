@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     try
     {
         std::string pathName;
-        double radius, maxPitch;
+        double radius, maxPitch, windRatio, windHeading;
         unsigned numSamples;
         po::options_description desc("Options");
         // clang-format off
@@ -151,8 +151,10 @@ int main(int argc, char *argv[])
             ("goal", po::value<std::vector<double>>()->multitoken(),
                 "use (x,y,z,yaw) as the goal instead of a random state")
             ("radius", po::value<double>(&radius)->default_value(1.), "turn radius")
-            ("maxpitch", po::value<double>(&maxPitch)->default_value(.5), "maximum pitch angle");
-        // clang-format on
+            ("maxpitch", po::value<double>(&maxPitch)->default_value(.5), "maximum pitch angle")
+            ("windratio", po::value<double>(&windRatio)->default_value(.5), "wind ratio")
+            ("windheading", po::value<double>(&windHeading)->default_value(.5), "wind heading");
+            // clang-format on
 
         po::variables_map vm;
         po::store(po::parse_command_line(argc, argv, desc,
@@ -174,7 +176,7 @@ int main(int argc, char *argv[])
             bounds.setHigh(10);
             if (vm.count("trochoidairplane") != 0)
             {
-                auto space = std::make_shared<ob::TrochoidAirplaneStateSpace>(radius, maxPitch);
+                auto space = std::make_shared<ob::TrochoidAirplaneStateSpace>(radius, windRatio, windHeading, maxPitch);
                 // space->setTolerance(1e-16);
                 space->setBounds(bounds);
                 return space;
