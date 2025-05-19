@@ -79,21 +79,23 @@ def getPath(exec_path, **kwargs):
 # 2. A plot of the X-, Y-, and Z-coordinate as a function of path waypoint index
 # 3. A plot of pitch and yaw as a function of path waypoint index
 def plotPath(path, radius):
-    fig, axs = plt.subplots(3, 1, gridspec_kw={'height_ratios': [6, 1, 1]})
-    updateProjection(axs, axs[0])
-    axs[0].plot(path[:,1], path[:,2], path[:,3], color='k')
-    axs[0].set_xlabel('X')
-    axs[0].set_ylabel('Y')
-    axs[0].set_zlabel('Z')
-    axs[0].set_aspect('equal')
-    px, = axs[1].plot(path[:,1], color=cmap(0), label='X')
-    py, = axs[1].plot(path[:,2], color=cmap(1), label='Y')
-    pz, = axs[1].plot(path[:,3], color=cmap(2), label='Z')
-    axs[1].legend(handles=[px, py, pz])
-    print("Path shape: ", path.shape)
-    axs[2].plot(path[:,4], color=cmap(0), label='yaw')
-    axs[2].set_ylabel('yaw')
+    fig = plt.figure("Path visualization", figsize=(4.0, 5.0))
+    axs = fig.add_subplot(1, 1, 1, projection='3d')
+    # updateProjection(axs, axs)
+    axs.plot(path[:,1], path[:,2], path[:,3], color='k')
+    axs.set_xlabel('X')
+    axs.set_ylabel('Y')
+    axs.set_zlabel('Z')
+    axs.set_aspect('equal')
+    # px, = axs[1].plot(path[:,1], color=cmap(0), label='X')
+    # py, = axs[1].plot(path[:,2], color=cmap(1), label='Y')
+    # pz, = axs[1].plot(path[:,3], color=cmap(2), label='Z')
+    # axs[1].legend(handles=[px, py, pz])
+    # print("Path shape: ", path.shape)
+    # axs[2].plot(path[:,4], color=cmap(0), label='yaw')
+    # axs[2].set_ylabel('yaw')
     plt.grid()
+    fig.tight_layout()
     plt.show()
     return axs
 
@@ -124,10 +126,16 @@ if __name__ == "__main__":
     # hard code path to demo_TrochoidAirplane executable here if findExecutable() fails to find it
     exec_path = findExecutable()
     radius = 2
+    maxpitch = 0.15
+    windHeading = 0.0
+    windRatio = 0.3
     # change command line arguments for demo_TrochoidAirplane as needed here
     path = getPath(exec_path, 
                    trochoidairplane='',
                    radius=radius,
+                   maxpitch=maxpitch,
+                   windheading=windHeading,
+                   windratio=windRatio,
                    start="0 0 0 0",
                    goal="2 2 10 0")
     # or call readPath() on a precomputed path
