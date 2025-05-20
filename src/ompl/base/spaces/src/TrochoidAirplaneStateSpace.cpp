@@ -115,14 +115,21 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         // low altitude path
         return PathType{path, rho_, eta_, psi_, dz};
     }
-    else if (std::abs(dz) > (len + twopi * rho_) * tanMaxPitch_)
+    auto periodic_path = trochoidSpace_.getPath(state1, state1, rho_, eta_, psi_, true);
+    double lengthPeriodicPath = periodic_path.length();
+    if (std::abs(dz) > (len + lengthPeriodicPath) * tanMaxPitch_)
     {
         // high altitude path
-        auto periodic_path = trochoidSpace_.getPath(state1, state1, rho_, eta_, psi_, true);
-        double lengthPeriodicPath = periodic_path.length();
-
         unsigned int k = std::floor((std::abs(dz) / tanMaxPitch_ - len) / lengthPeriodicPath);
-        return PathType{path, rho_, eta_, psi_, dz, k};
+        auto radius = rho_;
+        auto radiusFun = [&, this](double r)
+        { return (trochoidSpace_.getPath(state1, state2, r, eta_, psi_).length() + trochoidSpace_.getPath(state1, state1, r, eta_, psi_, true).length() * k) * tanMaxPitch_ - std::abs(dz); };
+        std::uintmax_t iter = MAX_ITER;
+        auto result = boost::math::tools::bracket_and_solve_root(radiusFun, radius, 2., true, TOLERANCE, iter);
+        radius = .5 * (result.first + result.second);
+        std::cout << "Solved radius: " << radius << std::endl;
+        path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
+        return PathType{path, radius, eta_, psi_, dz, k};
     }
 
     // medium altitude path
@@ -224,11 +231,18 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
         else
         {
             // high altitude path
-            ///TODO: Find Trochoidal periodic paths
+            
+            // Find Trochoidal periodic paths
             auto periodic_path = trochoidSpace_.getPath(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
+            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
+            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
+            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
+
             double lengthPeriodicPath = periodic_path.length();
             auto lengthSpiral = lengthPeriodicPath * path.numTurns_;
+            
             auto lengthPath = path.path_.length();
+            std::cout << "[interpolation] length of path: " << path.path_.length();
             auto length = lengthSpiral + lengthPath, dist = t * length;
             if (dist > lengthSpiral) {
                 trochoidSpace_.interpolate(from, path.path_, (dist - lengthSpiral) / lengthPath, state, path.turnRadius_, path.windRatio_, path.windHeading_);
@@ -240,27 +254,28 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
     }
     else
     {
-        // medium altitude path
-        auto lengthTurn = std::abs(path.phi_) * path.turnRadius_;
-        auto lengthPath = path.turnRadius_ * path.path_.length();
-        auto length = lengthTurn + lengthPath, dist = t * length;
-        if (dist > lengthTurn)
-        {
-            State *s = (state == to) ? trochoidSpace_.allocState() : state;
-            turn(from, path.turnRadius_, path.phi_, s);
-            double wind_ratio;
-            double wind_heading;
-            trochoidSpace_.interpolate(s, path.path_, (dist - lengthTurn) / lengthPath, state, path.turnRadius_, wind_ratio, wind_heading);
-            if (state == to)
-                trochoidSpace_.freeState(s);
-        }
-        else
-        {
-            auto angle = dist / path.turnRadius_;
-            if (path.phi_ < 0)
-                angle = -angle;
-            turn(from, path.turnRadius_, angle, state);
-        }
+        OMPL_ERROR("FIXME: Medium altitude case not implemented");
+        // // medium altitude path
+        // auto lengthTurn = std::abs(path.phi_) * path.turnRadius_;
+        // auto lengthPath = path.turnRadius_ * path.path_.length();
+        // auto length = lengthTurn + lengthPath, dist = t * length;
+        // if (dist > lengthTurn)
+        // {
+        //     State *s = (state == to) ? trochoidSpace_.allocState() : state;
+        //     turn(from, path.turnRadius_, path.phi_, s);
+        //     double wind_ratio;
+        //     double wind_heading;
+        //     trochoidSpace_.interpolate(s, path.path_, (dist - lengthTurn) / lengthPath, state, path.turnRadius_, wind_ratio, wind_heading);
+        //     if (state == to)
+        //         trochoidSpace_.freeState(s);
+        // }
+        // else
+        // {
+        //     auto angle = dist / path.turnRadius_;
+        //     if (path.phi_ < 0)
+        //         angle = -angle;
+        //     turn(from, path.turnRadius_, angle, state);
+        // }
     }
 
     getSubspace(1)->enforceBounds(state->as<CompoundStateSpace::StateType>()->as<SO2StateSpace::StateType>(1));
