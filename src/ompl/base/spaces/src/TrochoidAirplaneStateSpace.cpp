@@ -130,61 +130,63 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         std::cout << "Solved radius: " << radius << std::endl;
         path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
         return PathType{path, radius, eta_, psi_, dz, k};
+    } else {
+        
+        // medium altitude path
+        auto zi = trochoidSpace_.allocState()->as<TrochoidStateSpace::StateType>();
+        auto phi = 0.1;
+        auto phiFun = [&, this](double phi)
+        {
+            turn(state1, rho_, eta_, psi_, phi, zi);
+            return (std::abs(phi) + trochoidSpace_.getPath(zi, state2, rho_, eta_, psi_).length()) * tanMaxPitch_ - std::abs(dz);
+        };
+
+        try
+        {
+            std::uintmax_t iter = MAX_ITER;
+            auto result = boost::math::tools::bracket_and_solve_root(phiFun, phi, 2., true, TOLERANCE, iter);
+            phi = .5 * (result.first + result.second);
+            if (std::abs(phiFun(phi)) > 1e-5)
+                throw std::domain_error("fail");
+        }
+        catch (...)
+        {
+            try
+            {
+                std::uintmax_t iter = MAX_ITER;
+                phi = -.1;
+                auto result = boost::math::tools::bracket_and_solve_root(phiFun, phi, 2., true, TOLERANCE, iter);
+                phi = .5 * (result.first + result.second);
+            }
+            catch (...)
+            {
+                // OMPL_ERROR("this shouldn't be happening!");
+                return {};
+            }
+        }
+        assert(std::abs(phiFun(phi)) < 1e-5);
+        turn(state1, rho_, eta_, psi_, phi, zi);
+        path = trochoidSpace_.getPath(zi, state2, rho_, eta_, psi_);
+        trochoidSpace_.freeState(zi);
+        return PathType{path, rho_, eta_, psi_, dz, phi};
     }
-
-    // medium altitude path
-    // {
-    //     auto zi = trochoidSpace_.allocState()->as<TrochoidStateSpace::StateType>();
-    //     auto phi = 0.1;
-    //     auto phiFun = [&, this](double phi)
-    //     {
-    //         turn(state1, rho_, phi, zi);
-    //         return (std::abs(phi) + trochoidSpace_.trochoid(zi, state2).length()) * rho_ * tanMaxPitch_ - std::abs(dz);
-    //     };
-
-    //     try
-    //     {
-    //         std::uintmax_t iter = MAX_ITER;
-    //         auto result = boost::math::tools::bracket_and_solve_root(phiFun, phi, 2., true, TOLERANCE, iter);
-    //         phi = .5 * (result.first + result.second);
-    //         if (std::abs(phiFun(phi)) > 1e-5)
-    //             throw std::domain_error("fail");
-    //     }
-    //     catch (...)
-    //     {
-    //         try
-    //         {
-    //             std::uintmax_t iter = MAX_ITER;
-    //             phi = -.1;
-    //             auto result = boost::math::tools::bracket_and_solve_root(phiFun, phi, 2., true, TOLERANCE, iter);
-    //             phi = .5 * (result.first + result.second);
-    //         }
-    //         catch (...)
-    //         {
-    //             // OMPL_ERROR("this shouldn't be happening!");
-    //             return {};
-    //         }
-    //     }
-    //     assert(std::abs(phiFun(phi)) < 1e-5);
-    //     turn(state1, rho_, phi, zi);
-    //     path = trochoidSpace_.trochoid(zi, state2, rho_);
-    //     trochoidSpace_.freeState(zi);
-    //     return PathType{path, rho_, dz, phi};
-    // }
 }
 
-void TrochoidAirplaneStateSpace::turn(const State *from, double turnRadius, double angle, State *state) const
+void TrochoidAirplaneStateSpace::turn(const State *from, double turnRadius, double windRatio, double windHeading, double angle, State *state) const
 {
     auto s0 = from->as<TrochoidStateSpace::StateType>();
     auto s1 = state->as<TrochoidStateSpace::StateType>();
-    double theta = s0->getYaw(), phi = theta + angle, r = (angle > 0 ? turnRadius : -turnRadius);
-    s1->setXY(s0->getX() + r * (std::sin(phi) - std::sin(theta)), s0->getY() + r * (-std::cos(phi) + std::cos(theta)));
-    s1->setYaw(phi);
+    double phi = s0->getYaw(), v = angle;
+    double delta = angle > 0 ? 1 : -1;
+    double x_t10 = s0->getX() - (turnRadius* delta) * sin(phi);
+    double y_t10 = s0->getY() + (turnRadius * delta) * cos(phi);
+    s1->setXY(x_t10 + (turnRadius * delta) * sin(delta *(1.0/turnRadius) * v + phi)  + windRatio * v, \
+    y_t10 - (turnRadius * delta) * cos(delta *(1.0/turnRadius) * v + phi));
+    s1->setYaw(phi + delta *(1.0/turnRadius) *v);
 }
 
 double TrochoidAirplaneStateSpace::distance(const State *state1, const State *state2) const
 {
-    ///TODO: Handle failure case
     if (auto path = getPath(state1, state2))
         return path->length();
     return getMaximumExtent();
@@ -234,15 +236,11 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
             
             // Find Trochoidal periodic paths
             auto periodic_path = trochoidSpace_.getPath(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
-            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
-            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
-            std::cout << "[interpolation] path turn radius: " << path.turnRadius_ << std::endl;
 
             double lengthPeriodicPath = periodic_path.length();
             auto lengthSpiral = lengthPeriodicPath * path.numTurns_;
             
             auto lengthPath = path.path_.length();
-            std::cout << "[interpolation] length of path: " << path.path_.length();
             auto length = lengthSpiral + lengthPath, dist = t * length;
             if (dist > lengthSpiral) {
                 trochoidSpace_.interpolate(from, path.path_, (dist - lengthSpiral) / lengthPath, state, path.turnRadius_, path.windRatio_, path.windHeading_);
@@ -254,28 +252,27 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
     }
     else
     {
-        OMPL_ERROR("FIXME: Medium altitude case not implemented");
-        // // medium altitude path
-        // auto lengthTurn = std::abs(path.phi_) * path.turnRadius_;
-        // auto lengthPath = path.turnRadius_ * path.path_.length();
-        // auto length = lengthTurn + lengthPath, dist = t * length;
-        // if (dist > lengthTurn)
-        // {
-        //     State *s = (state == to) ? trochoidSpace_.allocState() : state;
-        //     turn(from, path.turnRadius_, path.phi_, s);
-        //     double wind_ratio;
-        //     double wind_heading;
-        //     trochoidSpace_.interpolate(s, path.path_, (dist - lengthTurn) / lengthPath, state, path.turnRadius_, wind_ratio, wind_heading);
-        //     if (state == to)
-        //         trochoidSpace_.freeState(s);
-        // }
-        // else
-        // {
-        //     auto angle = dist / path.turnRadius_;
-        //     if (path.phi_ < 0)
-        //         angle = -angle;
-        //     turn(from, path.turnRadius_, angle, state);
-        // }
+        // medium altitude path
+        auto lengthTurn = std::abs(path.phi_);
+        auto lengthPath = path.path_.length();
+        auto length = lengthTurn + lengthPath, dist = t * length;
+        if (dist > lengthTurn)
+        {
+            State *s = (state == to) ? trochoidSpace_.allocState() : state;
+            turn(from, path.turnRadius_, path.windRatio_, path.windHeading_, path.phi_, s);
+            trochoidSpace_.interpolate(s, path.path_, (dist - lengthTurn) / lengthPath, state, path.turnRadius_, path.windRatio_, path.windHeading_);
+            if (state == to)
+                trochoidSpace_.freeState(s);
+        }
+        else
+        {
+            auto angle = dist;
+            std::cout << "[interpolate] Angle: " << angle << std::endl;
+            std::cout << "[interpolate]   - phi: " << path.phi_ << std::endl;
+            if (path.phi_ < 0)
+                angle = -angle;
+            turn(from, path.turnRadius_, path.windRatio_, path.windHeading_, angle, state);
+        }
     }
 
     getSubspace(1)->enforceBounds(state->as<CompoundStateSpace::StateType>()->as<SO2StateSpace::StateType>(1));

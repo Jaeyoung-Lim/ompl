@@ -202,7 +202,7 @@ namespace ompl::base
         /**
          * \brief Compute the SE(2) state after making a turn
          */
-        void turn(const State *from, double turnRadius, double angle, State *state) const;
+        void turn(const State *from, double turnRadius, double windRatio, double windHeading, double angle, State *state) const;
 
         /** Turning radius */
         double rho_;
