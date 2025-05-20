@@ -143,14 +143,24 @@ if __name__ == "__main__":
                    start="0 0 0 0",
                    goal="2 2 2 0")
 
+    medium_altitude_path = getPath(exec_path, 
+                   trochoidairplane='',
+                   radius=radius,
+                   maxpitch=maxpitch,
+                   windheading=windHeading,
+                   windratio=windRatio,
+                   start="0 0 0 0",
+                   goal="2 2 5 0")
+
+
     # or call readPath() on a precomputed path
     #path = readPath('/my/path.dat')
-    print(high_altitude_path)
     fig = plt.figure("Path visualization", figsize=(4.0, 4.2))
     axs = fig.add_subplot(1, 1, 1, projection='3d')
 
     plotPath(axs, high_altitude_path, 'High Altitude')
     plotPath(axs, low_altitude_path, 'Low Altitude')
+    plotPath(axs, medium_altitude_path, 'Medium Altitude')
     axs.legend(loc='upper left')
 
     # plt.grid()
