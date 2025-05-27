@@ -127,7 +127,6 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         std::uintmax_t iter = MAX_ITER;
         auto result = boost::math::tools::bracket_and_solve_root(radiusFun, radius, 2., true, TOLERANCE, iter);
         radius = .5 * (result.first + result.second);
-        std::cout << "Solved radius: " << radius << std::endl;
         path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
         return PathType{path, radius, eta_, psi_, dz, k};
     } else {
@@ -267,8 +266,6 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
         else
         {
             auto angle = dist;
-            std::cout << "[interpolate] Angle: " << angle << std::endl;
-            std::cout << "[interpolate]   - phi: " << path.phi_ << std::endl;
             if (path.phi_ < 0)
                 angle = -angle;
             turn(from, path.turnRadius_, path.windRatio_, path.windHeading_, angle, state);
