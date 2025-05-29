@@ -128,7 +128,8 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         auto result = boost::math::tools::bracket_and_solve_root(radiusFun, radius, 2., true, TOLERANCE, iter);
         radius = .5 * (result.first + result.second);
         path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
-        return PathType{path, radius, eta_, psi_, dz, k};
+        periodic_path = trochoidSpace_.getPath(state1, state1, radius, eta_, psi_);
+        return PathType{path, radius, eta_, psi_, dz, k, periodic_path};
     } else {
         
         // medium altitude path
@@ -233,10 +234,8 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
         {
             // high altitude path
             
-            // Find Trochoidal periodic paths
-            auto periodic_path = trochoidSpace_.getPath(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
-
-            double lengthPeriodicPath = periodic_path.length();
+            // Parse Trochoidal periodic paths
+            double lengthPeriodicPath = path.periodic_path_.length();
             auto lengthSpiral = lengthPeriodicPath * path.numTurns_;
             
             auto lengthPath = path.path_.length();
@@ -245,7 +244,7 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
                 trochoidSpace_.interpolate(from, path.path_, (dist - lengthSpiral) / lengthPath, state, path.turnRadius_, path.windRatio_, path.windHeading_);
             } else {
                 double periodic_t = (dist - lengthPeriodicPath * std::floor(dist/lengthPeriodicPath))/lengthPeriodicPath;
-                trochoidSpace_.interpolate(from, periodic_path, periodic_t, state, path.turnRadius_, path.windRatio_, path.windHeading_);
+                trochoidSpace_.interpolate(from, path.periodic_path_, periodic_t, state, path.turnRadius_, path.windRatio_, path.windHeading_);
             }
         }
     }
