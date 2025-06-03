@@ -162,7 +162,7 @@ void printDistanceGrid(const ob::StateSpacePtr& space)
 
     for (unsigned int i=0; i<num_pts; ++i)
         for (unsigned int j=0; j<num_pts; ++j)
-            for (unsigned int k=0; k<num_pts; ++k)
+            for (unsigned int k=0; k<1; ++k)
             {
                 to[0] = 5. * (2. * (double)i/num_pts - 1.);
                 to[1] = 5. * (2. * (double)j/num_pts - 1.);
