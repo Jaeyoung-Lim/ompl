@@ -187,8 +187,13 @@ void TrochoidAirplaneStateSpace::turn(const State *from, double turnRadius, doub
 
 double TrochoidAirplaneStateSpace::distance(const State *state1, const State *state2) const
 {
-    if (auto path = getPath(state1, state2))
-        return path->length();
+    auto path = trochoidSpace_.getPath(state1, state2, rho_, eta_, psi_);
+    double dz = state1->as<ompl::base::TrochoidAirplaneStateSpace::StateType>()->as<ompl::base::RealVectorStateSpace::StateType>(0)->values[2] - state2->as<ompl::base::TrochoidAirplaneStateSpace::StateType>()->as<ompl::base::RealVectorStateSpace::StateType>(0)->values[2];
+    if (std::abs(dz) <= path.length() * tanMaxPitch_) {
+        return path.length();
+    } else {
+        return std::abs(dz) / tanMaxPitch_;
+    }
     return getMaximumExtent();
 }
 
