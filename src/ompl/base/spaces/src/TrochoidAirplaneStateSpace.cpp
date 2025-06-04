@@ -55,7 +55,7 @@ namespace
 }  // namespace
 
 TrochoidAirplaneStateSpace::TrochoidAirplaneStateSpace(double turningRadius, double windRatio, double windHeading, double maxPitch)
-  : rho_(turningRadius), eta_(windRatio), psi_(windHeading), tanMaxPitch_(std::tan(maxPitch)), trochoidSpace_(turningRadius)
+  : rho_(turningRadius), eta_(windRatio), psi_(windHeading), tanMaxPitch_(std::tan(maxPitch)), trochoidSpace_(turningRadius, windRatio, windHeading)
 {
     setName("TrochoidAirplane" + getName());
     type_ = STATE_SPACE_TROCHOID_AIRPLANE;
