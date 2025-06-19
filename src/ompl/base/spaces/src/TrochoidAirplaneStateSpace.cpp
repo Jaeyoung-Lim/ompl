@@ -128,7 +128,7 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         auto result = boost::math::tools::bracket_and_solve_root(radiusFun, radius, 2., true, TOLERANCE, iter);
         radius = .5 * (result.first + result.second);
         path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
-        periodic_path = trochoidSpace_.getPath(state1, state1, radius, eta_, psi_);
+        periodic_path = trochoidSpace_.getPath(state1, state1, radius, eta_, psi_, true);
         return PathType{path, radius, eta_, psi_, dz, k, periodic_path};
     } else {
         
