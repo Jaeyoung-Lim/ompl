@@ -675,6 +675,49 @@ namespace
         return path;
     }
 
+    TrochoidStateSpace::PathType getPeriodicPath(const double phi0, double radius, double wind_ratio, double direction)
+    {
+        bool periodic = true;
+        TrochoidStateSpace::PathType path;
+        if (direction > 0.0) {
+            path = trochoidLSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            double len, minLength = path.length();
+
+            TrochoidStateSpace::PathType tmp = trochoidLSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            if ((len = tmp.length()) < minLength)
+            {
+                minLength = len;
+                path = tmp;
+            }
+            if (!isLongPathCase(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio)) {
+                tmp = trochoidLRL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+                if ((len = tmp.length()) < minLength)
+                    minLength = len;
+                    path = tmp;
+            }
+        } else {
+            path = trochoidRSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            double len, minLength = path.length();
+
+            TrochoidStateSpace::PathType tmp = trochoidRSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            if ((len = tmp.length()) < minLength)
+            {
+                minLength = len;
+                path = tmp;
+            }
+            if (!isLongPathCase(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio)) {
+                tmp = trochoidRLR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+                if ((len = tmp.length()) < minLength)
+                {
+                    minLength = len;
+                    path = tmp;
+                }
+            }
+                    
+        }
+        return path;
+    }
+
 }  // namespace
 
 namespace ompl::base
@@ -819,6 +862,11 @@ TrochoidStateSpace::PathType TrochoidStateSpace::getPath(const State *state1, co
     return getPath(state1, state2, rho_, eta_, psi_w_, periodic);
 }
 
+TrochoidStateSpace::PathType TrochoidStateSpace::getPeriodicPath(const State *state1, double direction) const
+{
+    return getPeriodicPath(state1, rho_, eta_, psi_w_, direction);
+}
+
 TrochoidStateSpace::PathType TrochoidStateSpace::getPath(const State *state1, const State *state2, double radius, double wind_ratio, double wind_heading, bool periodic)
 {
     const auto *s1 = static_cast<const TrochoidStateSpace::StateType *>(state1);
@@ -834,4 +882,12 @@ TrochoidStateSpace::PathType TrochoidStateSpace::getPath(const State *state1, co
     double y_trochoid = -(xf-x0) * std::sin(wind_heading) + (yf- y0) * std::cos(wind_heading);
 
     return ::getPath(0.0, 0.0, phi0, x_trochoid, y_trochoid, phif, radius, wind_ratio, periodic);
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::getPeriodicPath(const State *state1, double direction, double radius, double wind_ratio, double wind_heading)
+{
+    const auto *s1 = static_cast<const TrochoidStateSpace::StateType *>(state1);
+    double phi0 = s1->getYaw() - wind_heading;
+
+    return ::getPeriodicPath(phi0, radius, wind_ratio, direction);
 }
