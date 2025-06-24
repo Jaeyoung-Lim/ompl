@@ -147,6 +147,9 @@ namespace ompl
             /** \brief Return a shortest Dubins path for a vehicle with given turning radius */
             static PathType getPath(const State *state1, const State *state2, double radius, double wind_ratio, double wind_heading, bool periodic=false);
 
+            PathType getPeriodicPath(const State *state1, double direction) const;
+            static PathType getPeriodicPath(const State *state1, double direction, double radius, double wind_ratio, double wind_heading);
+
         protected:
             /** \brief Turning radius */
             double rho_;
