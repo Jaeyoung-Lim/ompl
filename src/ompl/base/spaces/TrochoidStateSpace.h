@@ -150,6 +150,16 @@ namespace ompl
             PathType getPeriodicPath(const State *state1, double direction) const;
             static PathType getPeriodicPath(const State *state1, double direction, double radius, double wind_ratio, double wind_heading);
 
+            double getMinTurnRadius() const {
+                return rho_;
+            }
+            double getWindRatio() const {
+                return eta_;
+            }
+            double getWindHeading() const {
+                return psi_w_;
+            }
+    
         protected:
             /** \brief Turning radius */
             double rho_;
