@@ -138,8 +138,7 @@ int main(int argc, char *argv[])
     try
     {
         std::string pathName;
-        double radius, maxPitch, windRatio, windHeading;
-        unsigned numSamples;
+        double radius, maxPitch, windRatio, windHeading, verticalWindRatio;
         po::options_description desc("Options");
         // clang-format off
         desc.add_options()
@@ -153,7 +152,8 @@ int main(int argc, char *argv[])
             ("radius", po::value<double>(&radius)->default_value(1.), "turn radius")
             ("maxpitch", po::value<double>(&maxPitch)->default_value(.5), "maximum pitch angle")
             ("windratio", po::value<double>(&windRatio)->default_value(.5), "wind ratio")
-            ("windheading", po::value<double>(&windHeading)->default_value(.5), "wind heading");
+            ("windheading", po::value<double>(&windHeading)->default_value(.5), "wind heading")
+            ("verticalwindratio", po::value<double>(&verticalWindRatio)->default_value(.0), "vertical wind ratio");
             // clang-format on
 
         po::variables_map vm;
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
             bounds.setHigh(10);
             if (vm.count("trochoidairplane") != 0)
             {
-                auto space = std::make_shared<ob::TrochoidAirplaneStateSpace>(radius, windRatio, windHeading, maxPitch);
+                auto space = std::make_shared<ob::TrochoidAirplaneStateSpace>(radius, windRatio, windHeading, maxPitch, verticalWindRatio);
                 // space->setTolerance(1e-16);
                 space->setBounds(bounds);
                 return space;

@@ -124,6 +124,7 @@ if __name__ == "__main__":
     maxpitch = 0.15
     windHeading = 0.0
     windRatio = 0.3
+    vWindRatio = 0.0
     # change command line arguments for demo_TrochoidAirplane as needed here
     high_altitude_path = getPath(exec_path, 
                    trochoidairplane='',
@@ -131,6 +132,7 @@ if __name__ == "__main__":
                    maxpitch=maxpitch,
                    windheading=windHeading,
                    windratio=windRatio,
+                   verticalwindratio=vWindRatio,
                    start="0 0 0 0",
                    goal="2 2 10 0")
 
@@ -140,6 +142,7 @@ if __name__ == "__main__":
                    maxpitch=maxpitch,
                    windheading=windHeading,
                    windratio=windRatio,
+                   verticalwindratio=vWindRatio,
                    start="0 0 0 0",
                    goal="2 2 2 0")
 
@@ -149,6 +152,7 @@ if __name__ == "__main__":
                    maxpitch=maxpitch,
                    windheading=windHeading,
                    windratio=windRatio,
+                   verticalwindratio=vWindRatio,
                    start="0 0 0 0",
                    goal="2 2 5 0")
 

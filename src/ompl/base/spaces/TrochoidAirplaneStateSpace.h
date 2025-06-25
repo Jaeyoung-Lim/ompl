@@ -71,16 +71,16 @@ namespace ompl::base
         class PathType
         {
         public:
-            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ,
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double verticalWindRatio,
                      unsigned int numTurns = 0, std::optional<TrochoidStateSpace::PathType> periodic_path = std::nullopt)
-              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), numTurns_(numTurns)
+              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), verticalWindRatio_(verticalWindRatio), numTurns_(numTurns)
             {
                 if (periodic_path)
                 {
                     periodic_path_ = *periodic_path;
                 }
             }
-            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double phi)
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double verticalWindRatio, double phi)
               : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), phi_(phi)
             {
             }
@@ -96,6 +96,7 @@ namespace ompl::base
             double windRatio_{0.};
             double windHeading_{0.};
             double deltaZ_;
+            double verticalWindRatio_{0.};
             double phi_{0.};
             unsigned int numTurns_{0};
         };
@@ -123,7 +124,7 @@ namespace ompl::base
             }
         };
 
-        TrochoidAirplaneStateSpace(double turningRadius = 1.0, double windRatio = 0.0, double windHeading = 0.0, double maxPitch = boost::math::double_constants::sixth_pi);
+        TrochoidAirplaneStateSpace(double turningRadius = 1.0, double windRatio = 0.0, double windHeading = 0.0, double maxPitch = boost::math::double_constants::sixth_pi, double verticalWindRatio = 0.0);
         ~TrochoidAirplaneStateSpace() override = default;
 
         bool isMetricSpace() const override
@@ -221,6 +222,9 @@ namespace ompl::base
 
         /** Wind heading */
         double psi_;
+
+        /** Vertical wind ratio */
+        double eta_z_;
 
         /** Tan(pitch), where pitch is the maximum pitch in radians */
         double tanMaxPitch_;

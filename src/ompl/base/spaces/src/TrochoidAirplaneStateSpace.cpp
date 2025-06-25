@@ -54,8 +54,8 @@ namespace
     constexpr std::uintmax_t MAX_ITER = 32;
 }  // namespace
 
-TrochoidAirplaneStateSpace::TrochoidAirplaneStateSpace(double turningRadius, double windRatio, double windHeading, double maxPitch)
-  : rho_(turningRadius), eta_(windRatio), psi_(windHeading), tanMaxPitch_(std::tan(maxPitch)), trochoidSpace_(turningRadius, windRatio, windHeading)
+TrochoidAirplaneStateSpace::TrochoidAirplaneStateSpace(double turningRadius, double windRatio, double windHeading, double maxPitch, double verticalWindRatio)
+  : rho_(turningRadius), eta_(windRatio), psi_(windHeading), tanMaxPitch_(std::tan(maxPitch)), eta_z_(verticalWindRatio), trochoidSpace_(turningRadius, windRatio, windHeading)
 {
     setName("TrochoidAirplane" + getName());
     type_ = STATE_SPACE_TROCHOID_AIRPLANE;
@@ -110,26 +110,27 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
     auto s2 = state2->as<StateType>();
     auto path = trochoidSpace_.getPath(state1, state2, rho_, eta_, psi_);
     double dz = (*s2)[2] - (*s1)[2], len = path.length();
-    if (std::abs(dz) <= len * tanMaxPitch_)
+    double dz_sign = dz > 0 ? 1 : -1;
+    if (std::abs(dz) <= len * tanMaxPitch_ * std::abs(eta_z_ + dz_sign))
     {
         // low altitude path
-        return PathType{path, rho_, eta_, psi_, dz};
+        return PathType{path, rho_, eta_, psi_, dz, eta_z_};
     }
     auto periodic_path = trochoidSpace_.getPath(state1, state1, rho_, eta_, psi_, true);
     double lengthPeriodicPath = periodic_path.length();
-    if (std::abs(dz) > (len + lengthPeriodicPath) * tanMaxPitch_)
+    if (std::abs(dz) > (len + lengthPeriodicPath) * tanMaxPitch_ * std::abs(eta_z_ + dz_sign))
     {
         // high altitude path
-        unsigned int k = std::floor((std::abs(dz) / tanMaxPitch_ - len) / lengthPeriodicPath);
+        unsigned int k = std::floor((std::abs(dz) / (tanMaxPitch_ * std::abs(eta_z_ + dz_sign)) - len) / lengthPeriodicPath);
         auto radius = rho_;
         auto radiusFun = [&, this](double r)
-        { return (trochoidSpace_.getPath(state1, state2, r, eta_, psi_).length() + trochoidSpace_.getPath(state1, state1, r, eta_, psi_, true).length() * k) * tanMaxPitch_ - std::abs(dz); };
+        { return (trochoidSpace_.getPath(state1, state2, r, eta_, psi_).length() + trochoidSpace_.getPath(state1, state1, r, eta_, psi_, true).length() * k) * tanMaxPitch_ * std::abs(eta_z_ + dz_sign) - std::abs(dz); };
         std::uintmax_t iter = MAX_ITER;
         auto result = boost::math::tools::bracket_and_solve_root(radiusFun, radius, 2., true, TOLERANCE, iter);
         radius = .5 * (result.first + result.second);
         path = trochoidSpace_.getPath(state1, state2, radius, eta_, psi_);
         periodic_path = trochoidSpace_.getPath(state1, state1, radius, eta_, psi_, true);
-        return PathType{path, radius, eta_, psi_, dz, k, periodic_path};
+        return PathType{path, radius, eta_, psi_, dz, eta_z_, k, periodic_path};
     } else {
         
         // medium altitude path
@@ -168,7 +169,7 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
         turn(state1, rho_, eta_, psi_, phi, zi);
         path = trochoidSpace_.getPath(zi, state2, rho_, eta_, psi_);
         trochoidSpace_.freeState(zi);
-        return PathType{path, rho_, eta_, psi_, dz, phi};
+        return PathType{path, rho_, eta_, psi_, dz, eta_z_, phi};
     }
 }
 
@@ -309,8 +310,10 @@ namespace ompl::base
     {
         static const TrochoidStateSpace trochoidStateSpace;
 
-        os << "OwenPath[ category = " << (char)path.category() << "\n\tlength = " << path.length()
-           << "\n\tturnRadius=" << path.turnRadius_ << "\n\tdeltaZ=" << path.deltaZ_ << "\n\tphi=" << path.phi_
+        os << "TrochoidAirplanePath[ category = " << (char)path.category() << "\n\tlength = " << path.length()
+           << "\n\tturnRadius=" << path.turnRadius_ << "\n\twindRatio=" << path.windRatio_
+           <<  "\n\twindHeading=" << path.windHeading_ << "\n\tverticalWindRatio=" << path.verticalWindRatio_
+           << "\n\tdeltaZ=" << path.deltaZ_ << "\n\tphi=" << path.phi_
            << "\n\tnumTurns=" << path.numTurns_ << "\n\tpath=" << path.path_;
         os << "]";
         return os;
