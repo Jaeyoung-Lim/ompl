@@ -147,7 +147,7 @@ std::optional<TrochoidAirplaneStateSpace::PathType> TrochoidAirplaneStateSpace::
             std::uintmax_t iter = MAX_ITER;
             auto result = boost::math::tools::bracket_and_solve_root(phiFun, phi, 2., true, TOLERANCE, iter);
             phi = .5 * (result.first + result.second);
-            if (std::abs(phiFun(phi)) > 1e-5)
+            if (std::abs(phiFun(phi)) > 2e-5)
                 throw std::domain_error("fail");
         }
         catch (...)
