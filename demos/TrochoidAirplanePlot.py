@@ -81,6 +81,7 @@ def getPath(exec_path, **kwargs):
 def plotPath(axs, path, name):
     # updateProjection(axs, axs)
     axs.plot(path[:,1], path[:,2], path[:,3], label=name)
+    # axs.plot(path[:,1], path[:,2], np.zeros_like(path[:,3]), label='_nolegend_', color='grey')
     axs.set_xlabel('X')
     axs.set_ylabel('Y')
     axs.set_zlabel('Z')
@@ -117,14 +118,19 @@ def findExecutable(exec_name='demo_TrochoidAirplane'):
                     exit(1)
     return executable
 
+def plotQuiver(axs):
+    x, y, z = np.meshgrid(np.arange(-0.8, 1, 0.2),
+                      np.arange(-0.8, 1, 0.2),
+                      np.arange(-0.8, 1, 0.8))
+
 if __name__ == "__main__":
     # hard code path to demo_TrochoidAirplane executable here if findExecutable() fails to find it
     exec_path = findExecutable()
     radius = 2
     maxpitch = 0.15
-    windHeading = 0.0
+    windHeading = 0.0*np.pi
     windRatio = 0.3
-    vWindRatio = 0.0
+    vWindRatio = -0.5
     # change command line arguments for demo_TrochoidAirplane as needed here
     high_altitude_path = getPath(exec_path, 
                    trochoidairplane='',
@@ -156,15 +162,18 @@ if __name__ == "__main__":
                    start="0 0 0 0",
                    goal="2 2 5 0")
 
-
     # or call readPath() on a precomputed path
     #path = readPath('/my/path.dat')
     fig = plt.figure("Path visualization", figsize=(4.0, 4.2))
     axs = fig.add_subplot(1, 1, 1, projection='3d')
 
     plotPath(axs, high_altitude_path, 'High Altitude')
-    plotPath(axs, low_altitude_path, 'Low Altitude')
     plotPath(axs, medium_altitude_path, 'Medium Altitude')
+    plotPath(axs, low_altitude_path, 'Low Altitude')
+    axs.set_xlim([-4, 6])
+    axs.set_ylim([-4, 6])
+    axs.set_zlim([0, 10])
+    axs.set_aspect('equal')    # plotQuiver(axs)
     axs.legend(loc='upper left')
 
     # plt.grid()
