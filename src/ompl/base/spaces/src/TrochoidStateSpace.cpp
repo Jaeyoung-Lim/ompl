@@ -770,6 +770,14 @@ void TrochoidStateSpace::interpolate(const State *from, const State *to, const d
     interpolate(from, to, t, firstTime, path, state);
 }
 
+TrochoidStateSpace::PathType TrochoidStateSpace::periodicTrochoidLRL(double x0, double y0, double phi0, double radius, double wind_ratio) {
+    return trochoidLRL(x0, y0, phi0, x0, y0, phi0, radius, wind_ratio, true);
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::periodicTrochoidRLR(double x0, double y0, double phi0, double radius, double wind_ratio) {
+    return trochoidRLR(x0, y0, phi0, x0, y0, phi0, radius, wind_ratio, true);
+}
+
 void TrochoidStateSpace::interpolate(const State *from, const State *to, const double t, bool &firstTime,
                                    PathType &path, State *state) const
 {

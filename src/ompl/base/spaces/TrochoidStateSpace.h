@@ -160,6 +160,10 @@ namespace ompl
                 return psi_w_;
             }
     
+            PathType periodicTrochoidLRL(double x0, double y0, double phi0, double radius, double wind_ratio);
+
+            PathType periodicTrochoidRLR(double x0, double y0, double phi0, double radius, double wind_ratio);
+
         protected:
             /** \brief Turning radius */
             double rho_;
