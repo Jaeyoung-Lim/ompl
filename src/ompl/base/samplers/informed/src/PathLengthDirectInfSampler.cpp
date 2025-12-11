@@ -125,7 +125,8 @@ namespace ompl
                 if (InformedSampler::space_->getType() == STATE_SPACE_SE2 ||
                     InformedSampler::space_->getType() == STATE_SPACE_SE3 ||
                     InformedSampler::space_->getType() == STATE_SPACE_DUBINS ||
-                    InformedSampler::space_->getType() == STATE_SPACE_REEDS_SHEPP)
+                    InformedSampler::space_->getType() == STATE_SPACE_REEDS_SHEPP ||
+                    InformedSampler::space_->getType() == STATE_SPACE_TROCHOID_AIRPLANE)
                 {
                     // Sanity check
                     if (compoundSpace->getSubspaceCount() != 2u)
