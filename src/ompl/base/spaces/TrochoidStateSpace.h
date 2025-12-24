@@ -163,6 +163,12 @@ namespace ompl
             PathType periodicTrochoidLRL(double x0, double y0, double phi0, double radius, double wind_ratio);
 
             PathType periodicTrochoidRLR(double x0, double y0, double phi0, double radius, double wind_ratio);
+            static PathType trochoidRSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidRSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLRL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidRLR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
 
         protected:
             /** \brief Turning radius */

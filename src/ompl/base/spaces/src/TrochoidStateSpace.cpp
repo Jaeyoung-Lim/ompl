@@ -594,54 +594,12 @@ namespace
         return is_geometric_long_path && is_wind_blowingaway;
     }
 
-    TrochoidStateSpace::PathType trochoidRSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[1]);
-        trochoidBSB(x0, y0, phi0, xf, yf, phif, -1, -1, radius, wind_ratio, periodic, path);
-        return path;
-    }
-
-    TrochoidStateSpace::PathType trochoidLSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[0]);
-        trochoidBSB(x0, y0, phi0, xf, yf, phif, 1, 1, radius, wind_ratio, periodic, path);
-        return path; 
-    }
-
-    TrochoidStateSpace::PathType trochoidRSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[2]);
-        trochoidBSB(x0, y0, phi0, xf, yf, phif, -1, 1, radius, wind_ratio, periodic, path);
-        return path;
-    }
-
-    TrochoidStateSpace::PathType trochoidLSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[3]);
-        trochoidBSB(x0, y0, phi0, xf, yf, phif, 1, -1, radius, wind_ratio, periodic, path);
-        return path;
-    }
-
-    TrochoidStateSpace::PathType trochoidLRL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[5]);
-        trochoidBBB(x0, y0, phi0, xf, yf, phif, 1, radius, wind_ratio, periodic, path);
-        return path;
-    }
-
-    TrochoidStateSpace::PathType trochoidRLR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
-    {
-        TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[4]);
-        trochoidBBB(x0, y0, phi0, xf, yf, phif, -1, radius, wind_ratio, periodic, path);
-        return path;
-    }
-
     TrochoidStateSpace::PathType getPath(const double x0, const double y0, const double phi0, const double xf, const double yf, const double phif, double radius, double wind_ratio, bool periodic)
     {
         if (fabs(x0 - xf) < TROCHOID_EPS && fabs(y0 - yf) < TROCHOID_EPS && fabs(phi0 - phif) < TROCHOID_EPS && !periodic)
             return {TrochoidStateSpace::dubinsPathType()[0], 0.0, 0.0};
 
-        TrochoidStateSpace::PathType path(trochoidLSL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic)), tmp(trochoidRSR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic));
+        TrochoidStateSpace::PathType path(TrochoidStateSpace::trochoidLSL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic)), tmp(TrochoidStateSpace::trochoidRSR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic));
         double len, minLength = path.length();
 
         if ((len = tmp.length()) < minLength)
@@ -649,29 +607,29 @@ namespace
             minLength = len;
             path = tmp;
         }
-        tmp = trochoidRSL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+        tmp = TrochoidStateSpace::trochoidRSL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
         if ((len = tmp.length()) < minLength)
         {
             minLength = len;
             path = tmp;
         }
-        tmp = trochoidLSR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+        tmp = TrochoidStateSpace::trochoidLSR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
         if ((len = tmp.length()) < minLength)
         {
             minLength = len;
             path = tmp;
         }
-        if (!isLongPathCase(x0, y0, phi0, xf, yf, phif, radius, wind_ratio)) {
-            tmp = trochoidRLR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
-            if ((len = tmp.length()) < minLength)
-            {
-                minLength = len;
-                path = tmp;
-            }
-            tmp = trochoidLRL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
-            if ((len = tmp.length()) < minLength)
-                path = tmp;
-        }
+        // if (!isLongPathCase(x0, y0, phi0, xf, yf, phif, radius, wind_ratio)) {
+        //     tmp = trochoidRLR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+        //     if ((len = tmp.length()) < minLength)
+        //     {
+        //         minLength = len;
+        //         path = tmp;
+        //     }
+        //     tmp = trochoidLRL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+        //     if ((len = tmp.length()) < minLength)
+        //         path = tmp;
+        // }
         return path;
     }
 
@@ -680,33 +638,33 @@ namespace
         bool periodic = true;
         TrochoidStateSpace::PathType path;
         if (direction > 0.0) {
-            path = trochoidLSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            path = TrochoidStateSpace::trochoidLSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
             double len, minLength = path.length();
 
-            TrochoidStateSpace::PathType tmp = trochoidLSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            TrochoidStateSpace::PathType tmp = TrochoidStateSpace::trochoidLSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
             if ((len = tmp.length()) < minLength)
             {
                 minLength = len;
                 path = tmp;
             }
             if (!isLongPathCase(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio)) {
-                tmp = trochoidLRL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+                tmp = TrochoidStateSpace::trochoidLRL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
                 if ((len = tmp.length()) < minLength)
                     minLength = len;
                     path = tmp;
             }
         } else {
-            path = trochoidRSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            path = TrochoidStateSpace::trochoidRSR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
             double len, minLength = path.length();
 
-            TrochoidStateSpace::PathType tmp = trochoidRSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+            TrochoidStateSpace::PathType tmp = TrochoidStateSpace::trochoidRSL(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
             if ((len = tmp.length()) < minLength)
             {
                 minLength = len;
                 path = tmp;
             }
             if (!isLongPathCase(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio)) {
-                tmp = trochoidRLR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
+                tmp = TrochoidStateSpace::trochoidRLR(0.0, 0.0, phi0, 0.0, 0.0, phi0, radius, wind_ratio, periodic);
                 if ((len = tmp.length()) < minLength)
                 {
                     minLength = len;
@@ -737,6 +695,48 @@ namespace ompl::base
         return os;
     }
 }  // namespace ompl::base
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidRSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[1]);
+    trochoidBSB(x0, y0, phi0, xf, yf, phif, -1, -1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidLSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[0]);
+    trochoidBSB(x0, y0, phi0, xf, yf, phif, 1, 1, radius, wind_ratio, periodic, path);
+    return path; 
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidRSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[2]);
+    trochoidBSB(x0, y0, phi0, xf, yf, phif, -1, 1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidLSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[3]);
+    trochoidBSB(x0, y0, phi0, xf, yf, phif, 1, -1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidLRL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[5]);
+    trochoidBBB(x0, y0, phi0, xf, yf, phif, 1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidRLR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[4]);
+    trochoidBBB(x0, y0, phi0, xf, yf, phif, -1, radius, wind_ratio, periodic, path);
+    return path;
+}
 
 const std::vector<std::vector<TrochoidStateSpace::TrochoidPathSegmentType> >& TrochoidStateSpace::dubinsPathType() {
     static const std::vector<std::vector<TrochoidStateSpace::TrochoidPathSegmentType>> *pathType =
