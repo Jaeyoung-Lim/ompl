@@ -170,6 +170,14 @@ namespace ompl
             static PathType trochoidLRL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
             static PathType trochoidRLR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
 
+            /** \brief Original O(n²) BBB solver for benchmarking comparison.
+             *
+             * This uses the exhaustive 2D grid search with 2D Newton-Raphson.
+             * Kept for performance comparison with the optimized 1D solver.
+             */
+            static PathType trochoidLRL_original(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidRLR_original(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+
         protected:
             /** \brief Turning radius */
             double rho_;

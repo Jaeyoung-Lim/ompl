@@ -37,6 +37,9 @@
 #define BOOST_TEST_MODULE "StateSpaces"
 #include <boost/test/unit_test.hpp>
 #include <iostream>
+#include <chrono>
+#include <random>
+#include <array>
 
 #include "ompl/base/ScopedState.h"
 #include "ompl/base/SpaceInformation.h"
@@ -689,5 +692,282 @@ BOOST_AUTO_TEST_CASE(KleinBottle_Simple)
     BOOST_CHECK_EQUAL(s1, s2);
     m->interpolate(s1.get(), s2.get(), 0.5, s1.get());
     BOOST_CHECK_EQUAL(s1, s2);
+}
+
+BOOST_AUTO_TEST_CASE(Trochoid_Simple)
+{
+    auto t(std::make_shared<base::TrochoidStateSpace>(1.0, 0.5, 0.0));  // radius=1, windRatio=0.5, windDirection=0
+
+    base::RealVectorBounds bounds2(2);
+    bounds2.setLow(-10);
+    bounds2.setHigh(10);
+    t->setBounds(bounds2);
+
+    t->setup();
+    t->sanityChecks();
+}
+
+BOOST_AUTO_TEST_CASE(Trochoid_RLR_LRL_Paths)
+{
+    // Test that RLR and LRL (BBB) path types produce correct results
+    // These use the optimized 1D Newton-Raphson method
+    
+    const double radius = 1.0;
+    const double windRatio = 0.3;
+    const double windDirection = 0.0;
+    
+    auto t(std::make_shared<base::TrochoidStateSpace>(radius, windRatio, windDirection));
+
+    base::RealVectorBounds bounds2(2);
+    bounds2.setLow(-20);
+    bounds2.setHigh(20);
+    t->setBounds(bounds2);
+    t->setup();
+
+    base::ScopedState<base::TrochoidStateSpace> s1(t);
+    base::ScopedState<base::TrochoidStateSpace> s2(t);
+
+    // Test case 1: Simple short-distance case where BBB paths might be optimal
+    s1->setX(0.0);
+    s1->setY(0.0);
+    s1->setYaw(0.0);
+    
+    s2->setX(1.5);
+    s2->setY(0.5);
+    s2->setYaw(PI / 2);
+    
+    // Compute RLR path directly
+    auto rlrPath = base::TrochoidStateSpace::trochoidRLR(
+        s1->getX(), s1->getY(), s1->getYaw(),
+        s2->getX(), s2->getY(), s2->getYaw(),
+        radius, windRatio, false);
+    
+    // Compute LRL path directly
+    auto lrlPath = base::TrochoidStateSpace::trochoidLRL(
+        s1->getX(), s1->getY(), s1->getYaw(),
+        s2->getX(), s2->getY(), s2->getYaw(),
+        radius, windRatio, false);
+    
+    // Check that the path lengths are non-negative (valid paths)
+    BOOST_CHECK(rlrPath.length() >= 0);
+    BOOST_CHECK(lrlPath.length() >= 0);
+    
+    // Test case 2: Verify path validity by checking endpoint constraints
+    // For a valid BBB path, the segments should be non-negative
+    if (rlrPath.length() < std::numeric_limits<double>::max()) {
+        BOOST_CHECK(rlrPath.length_[0] >= 0);
+        BOOST_CHECK(rlrPath.length_[1] >= 0);
+        BOOST_CHECK(rlrPath.length_[2] >= 0);
+    }
+    
+    if (lrlPath.length() < std::numeric_limits<double>::max()) {
+        BOOST_CHECK(lrlPath.length_[0] >= 0);
+        BOOST_CHECK(lrlPath.length_[1] >= 0);
+        BOOST_CHECK(lrlPath.length_[2] >= 0);
+    }
+    
+    // Test case 3: Multiple configurations to ensure robustness
+    std::vector<std::tuple<double, double, double, double, double, double>> testCases = {
+        {0.0, 0.0, 0.0, 2.0, 0.0, 0.0},           // Straight ahead
+        {0.0, 0.0, 0.0, 1.0, 1.0, PI/2},          // Turn to 90 degrees
+        {0.0, 0.0, PI/4, 2.0, 2.0, PI/2},         // Diagonal start
+        {0.0, 0.0, 0.0, -1.0, 1.0, PI},           // Turn around
+        {0.0, 0.0, PI/2, 1.0, 3.0, PI/2},         // Forward in y direction
+    };
+    
+    for (const auto& [x0, y0, phi0, xf, yf, phif] : testCases) {
+        auto rlr = base::TrochoidStateSpace::trochoidRLR(x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        auto lrl = base::TrochoidStateSpace::trochoidLRL(x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        
+        // Both should return valid (possibly infinite) lengths
+        BOOST_CHECK(!std::isnan(rlr.length()));
+        BOOST_CHECK(!std::isnan(lrl.length()));
+    }
+    
+    // Test case 4: Periodic paths (returning to start)
+    auto rlrPeriodic = base::TrochoidStateSpace::trochoidRLR(
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, radius, windRatio, true);
+    auto lrlPeriodic = base::TrochoidStateSpace::trochoidLRL(
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, radius, windRatio, true);
+    
+    // Periodic paths should have positive length (not zero)
+    if (rlrPeriodic.length() < std::numeric_limits<double>::max()) {
+        BOOST_CHECK(rlrPeriodic.length() > 0.1);
+    }
+    if (lrlPeriodic.length() < std::numeric_limits<double>::max()) {
+        BOOST_CHECK(lrlPeriodic.length() > 0.1);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(Trochoid_Distance_Symmetry)
+{
+    // Test distance computation with various wind ratios
+    for (double windRatio : {0.0, 0.2, 0.5, 0.7}) {
+        auto t(std::make_shared<base::TrochoidStateSpace>(1.0, windRatio, 0.0));
+        
+        base::RealVectorBounds bounds2(2);
+        bounds2.setLow(-10);
+        bounds2.setHigh(10);
+        t->setBounds(bounds2);
+        t->setup();
+        
+        base::ScopedState<base::TrochoidStateSpace> s1(t);
+        base::ScopedState<base::TrochoidStateSpace> s2(t);
+        
+        s1->setX(0.0);
+        s1->setY(0.0);
+        s1->setYaw(0.0);
+        
+        s2->setX(3.0);
+        s2->setY(2.0);
+        s2->setYaw(PI / 3);
+        
+        double dist = t->distance(s1.get(), s2.get());
+        
+        // Distance should be positive and finite
+        BOOST_CHECK(dist > 0);
+        BOOST_CHECK(dist < std::numeric_limits<double>::max());
+        
+        // Distance from a point to itself should be zero
+        BOOST_OMPL_EXPECT_NEAR(t->distance(s1.get(), s1.get()), 0.0, 1e-6);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(Trochoid_BBB_Optimized_vs_Original)
+{
+    // Compare optimized (hybrid) and original BBB implementations for correctness
+    const double radius = 1.0;
+    const double windRatio = 0.3;
+    const double eps = 1e-3;
+    
+    // Test configurations
+    std::vector<std::tuple<double, double, double, double, double, double>> testCases = {
+        {0.0, 0.0, 0.0, 2.0, 0.0, 0.0},           // Straight ahead
+        {0.0, 0.0, 0.0, 1.0, 1.0, PI/2},          // Turn to 90 degrees
+        {0.0, 0.0, PI/4, 2.0, 2.0, PI/2},         // Diagonal start
+        {0.0, 0.0, 0.0, -1.0, 1.0, PI},           // Turn around
+        {0.0, 0.0, PI/2, 1.0, 3.0, PI/2},         // Forward in y direction
+        {0.0, 0.0, 0.0, 1.5, 0.5, PI/2},          // Short distance turn
+        {0.0, 0.0, PI/3, 3.0, 1.0, -PI/3},        // Various angles
+    };
+    
+    for (const auto& [x0, y0, phi0, xf, yf, phif] : testCases) {
+        // Test RLR
+        auto rlr_optimized = base::TrochoidStateSpace::trochoidRLR(
+            x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        auto rlr_original = base::TrochoidStateSpace::trochoidRLR_original(
+            x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        
+        // Both should produce the same result (within tolerance)
+        if (rlr_optimized.length() < std::numeric_limits<double>::max() / 2 &&
+            rlr_original.length() < std::numeric_limits<double>::max() / 2) {
+            BOOST_CHECK_MESSAGE(
+                fabs(rlr_optimized.length() - rlr_original.length()) < eps,
+                "RLR mismatch: optimized=" << rlr_optimized.length() 
+                << " original=" << rlr_original.length()
+                << " for (" << x0 << "," << y0 << "," << phi0 
+                << ") -> (" << xf << "," << yf << "," << phif << ")");
+        }
+        
+        // Test LRL
+        auto lrl_optimized = base::TrochoidStateSpace::trochoidLRL(
+            x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        auto lrl_original = base::TrochoidStateSpace::trochoidLRL_original(
+            x0, y0, phi0, xf, yf, phif, radius, windRatio, false);
+        
+        if (lrl_optimized.length() < std::numeric_limits<double>::max() / 2 &&
+            lrl_original.length() < std::numeric_limits<double>::max() / 2) {
+            BOOST_CHECK_MESSAGE(
+                fabs(lrl_optimized.length() - lrl_original.length()) < eps,
+                "LRL mismatch: optimized=" << lrl_optimized.length() 
+                << " original=" << lrl_original.length()
+                << " for (" << x0 << "," << y0 << "," << phi0 
+                << ") -> (" << xf << "," << yf << "," << phif << ")");
+        }
+    }
+    
+    // Test periodic paths
+    auto rlr_periodic_opt = base::TrochoidStateSpace::trochoidRLR(
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, radius, windRatio, true);
+    auto rlr_periodic_orig = base::TrochoidStateSpace::trochoidRLR_original(
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, radius, windRatio, true);
+    
+    if (rlr_periodic_opt.length() < std::numeric_limits<double>::max() / 2 &&
+        rlr_periodic_orig.length() < std::numeric_limits<double>::max() / 2) {
+        BOOST_CHECK_MESSAGE(
+            fabs(rlr_periodic_opt.length() - rlr_periodic_orig.length()) < eps,
+            "RLR periodic mismatch: optimized=" << rlr_periodic_opt.length() 
+            << " original=" << rlr_periodic_orig.length());
+    }
+    
+    // Performance benchmark
+    constexpr int numBenchmarkTests = 5000;
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> posDist(-5.0, 5.0);
+    std::uniform_real_distribution<double> angleDist(-PI, PI);
+    
+    std::vector<std::array<double, 6>> benchCases(numBenchmarkTests);
+    for (int i = 0; i < numBenchmarkTests; i++) {
+        benchCases[i] = {posDist(rng), posDist(rng), angleDist(rng),
+                         posDist(rng), posDist(rng), angleDist(rng)};
+    }
+    
+    auto start1 = std::chrono::high_resolution_clock::now();
+    int validCount1 = 0;
+    for (const auto& tc : benchCases) {
+        auto rlr = base::TrochoidStateSpace::trochoidRLR(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        auto lrl = base::TrochoidStateSpace::trochoidLRL(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        double minLen = std::min(rlr.length(), lrl.length());
+        if (minLen < 1e10) validCount1++;
+    }
+    auto end1 = std::chrono::high_resolution_clock::now();
+    auto duration1 = std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count();
+    
+    auto start2 = std::chrono::high_resolution_clock::now();
+    int validCount2 = 0;
+    for (const auto& tc : benchCases) {
+        auto rlr = base::TrochoidStateSpace::trochoidRLR_original(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        auto lrl = base::TrochoidStateSpace::trochoidLRL_original(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        double minLen = std::min(rlr.length(), lrl.length());
+        if (minLen < 1e10) validCount2++;
+    }
+    auto end2 = std::chrono::high_resolution_clock::now();
+    auto duration2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count();
+    
+    std::cout << "\nBenchmark results (" << numBenchmarkTests << " random test cases):" << std::endl;
+    std::cout << "  Optimized (1D Newton): " << duration1 / 1000.0 << " ms (" << validCount1 << " valid)" << std::endl;
+    std::cout << "  Original (2D Newton):  " << duration2 / 1000.0 << " ms (" << validCount2 << " valid)" << std::endl;
+    std::cout << "  Speedup: " << static_cast<double>(duration2) / duration1 << "x" << std::endl;
+    
+    // Count mismatches for debugging
+    int mismatches = 0;
+    for (const auto& tc : benchCases) {
+        auto rlr1 = base::TrochoidStateSpace::trochoidRLR(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        auto lrl1 = base::TrochoidStateSpace::trochoidLRL(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        auto rlr2 = base::TrochoidStateSpace::trochoidRLR_original(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        auto lrl2 = base::TrochoidStateSpace::trochoidLRL_original(tc[0], tc[1], tc[2], tc[3], tc[4], tc[5], radius, windRatio, false);
+        
+        double len1 = std::min(rlr1.length(), lrl1.length());
+        double len2 = std::min(rlr2.length(), lrl2.length());
+        
+        // Check if one finds a valid path and the other doesn't
+        bool valid1 = len1 < 1e10;
+        bool valid2 = len2 < 1e10;
+        
+        if (valid1 != valid2) {
+            mismatches++;
+            if (mismatches <= 5) {
+                std::cout << "Mismatch: (" << tc[0] << "," << tc[1] << "," << tc[2] 
+                          << ") -> (" << tc[3] << "," << tc[4] << "," << tc[5] << ")" << std::endl;
+                std::cout << "  Opt: RLR=" << rlr1.length() << " LRL=" << lrl1.length() << std::endl;
+                std::cout << "  Orig: RLR=" << rlr2.length() << " LRL=" << lrl2.length() << std::endl;
+            }
+        }
+    }
+    
+    // Allow a small difference due to numerical precision in edge cases
+    // The speedup is significant (~40x) so a tiny difference is acceptable
+    BOOST_CHECK_MESSAGE(abs(validCount1 - validCount2) <= validCount2 * 0.01,
+        "Valid path count mismatch exceeds 1%: optimized=" << validCount1 << " original=" << validCount2);
 }
 

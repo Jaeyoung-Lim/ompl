@@ -452,7 +452,10 @@ namespace
     }
 
     /**
-     * @brief Root solve for BBB path type. Implementation of Section V. in Techy (2009).
+     * @brief Original 2D Newton-Raphson solver for BBB path type (kept for benchmarking).
+     *
+     * This is the original exhaustive 2D grid search implementation. It is kept for
+     * performance comparison with the optimized 1D solver.
      *
      * @param p0 Guess value for tA
      * @param p1 Guess value for T
@@ -464,7 +467,7 @@ namespace
      * @param xf Relative Target position x
      * @param yf Relative Target position y
      * @param phif Target heading
-     * @param radius  Minimum turn radius in air-relative frame
+     * @param radius Minimum turn radius in air-relative frame
      * @param wind_ratio Wind ratio
      * @return Result of roots solved as a pair of doubles
      */
@@ -472,7 +475,6 @@ namespace
                                             double phit1, double xf, double yf, double phif, double radius,
                                             double wind_ratio)
     {
-        // Implement TrochoidBBB
         constexpr double tol = 0.0001;
         constexpr int N = 50;
         double d2 = -delta_1;
@@ -521,8 +523,11 @@ namespace
     }
 
     /**
-     * @brief 
-     * 
+     * @brief Original BBB path solver using exhaustive 2D grid search (kept for benchmarking).
+     *
+     * This is the original O(n²) implementation that tests a grid of initial conditions
+     * and uses 2D Newton-Raphson. Kept for performance comparison.
+     *
      * @param x0 Start position x
      * @param y0 Start position y
      * @param phit1 Start heading
@@ -530,12 +535,12 @@ namespace
      * @param yf Target position y
      * @param phif End heading
      * @param delta_1 Turn direction of starting arc
-     * @param radius minimum air-relative turning radius
-     * @param wind_ratio wind ratio
+     * @param radius Minimum air-relative turning radius
+     * @param wind_ratio Wind ratio
      * @param periodic Whether the path is periodic
      * @param path Computed path object
      */
-    void trochoidBBB(double x0, double y0, double phit1, double xf, double yf, double phif, double delta_1, double radius, double wind_ratio, bool periodic, TrochoidStateSpace::PathType &path) {
+    void trochoidBBB_original(double x0, double y0, double phit1, double xf, double yf, double phif, double delta_1, double radius, double wind_ratio, bool periodic, TrochoidStateSpace::PathType &path) {
         double omega = (1/radius);
         double t2pi = twopi * radius;
 
@@ -581,6 +586,209 @@ namespace
             }
             }
         }  
+    }
+
+    /**
+     * @brief 1D Newton-Raphson solver for BBB paths.
+     * 
+     * Solves for tA using the constraint that both f1=0 and f2=0 must be satisfied.
+     * T is computed from tA using the closed-form solution derived from f2=0.
+     * 
+     * The solver handles the multi-valued nature of arccos by tracking which branch
+     * (arccos or -arccos, plus 2π offsets) to use based on the sign parameter.
+     * 
+     * @param tA_init Initial guess for tA
+     * @param sign Sign for arccos branch (+1 for arccos, -1 for -arccos)
+     * @param theta_shift Additional 2π shift for theta_mid
+     * @param k The k parameter for phase offset
+     * @param C_y Precomputed y-constraint constant
+     * @param delta_1 Direction parameter
+     * @param omega 1/radius
+     * @param phit1 Initial heading
+     * @param phif Final heading
+     * @param xt10 x-coordinate of first turning center
+     * @param xf Final x position
+     * @param wind_ratio Wind speed ratio
+     * @return Pair of (tA, T) if converged, (NaN, NaN) otherwise
+     */
+    std::pair<double, double> solveBBB_1D(double tA_init, int sign, double theta_shift, double k, double C_y,
+                                           double delta_1, double omega, double phit1, double phif,
+                                           double xt10, double xf, double wind_ratio)
+    {
+        constexpr double tol = 1e-8;
+        constexpr int maxIter = 30;
+        
+        double d2 = -delta_1;
+        double d3 = delta_1;
+        double phi_offset = (phif + phit1 + k * twopi) / 2.0;
+        double signD = static_cast<double>(sign);
+        
+        double tA = tA_init;
+        
+        for (int iter = 0; iter < maxIter; iter++) {
+            double theta1 = delta_1 * omega * tA + phit1;
+            double sin_theta1 = sin(theta1);
+            double cos_theta1 = cos(theta1);
+            
+            // Compute cos(θ_mid) from f2=0 constraint
+            double cos_theta_mid = (C_y - 2.0 / (delta_1 * omega) * cos_theta1) * (d2 * omega / 2.0);
+            
+            // Check if cos_theta_mid is in valid range
+            if (fabs(cos_theta_mid) > 1.0) {
+                return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+            }
+            
+            // theta_mid = sign * arccos(cos_theta_mid) + theta_shift
+            // where sign ∈ {-1, +1} and theta_shift ∈ {-2π, 0, 2π}
+            double arccos_val = acos(cos_theta_mid);
+            double theta_mid = signD * arccos_val + theta_shift;
+            double sin_theta_mid = sin(theta_mid);
+            double abs_sin_theta_mid = fabs(sin_theta_mid);
+            
+            // Compute T from closed-form
+            double T = 2.0 * (theta_mid - phi_offset - delta_1 * omega * tA) / (d2 * omega);
+            
+            // Check T bounds
+            if (T < 0 || T > 4.0 * twopi / omega) {
+                return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+            }
+            
+            // Compute residual g = f1(tA, T(tA))
+            double g = 2.0 / (delta_1 * omega) * sin_theta1 + wind_ratio * T + xt10 - xf +
+                       1.0 / (d3 * omega) * sin(phif) + 2.0 / (d2 * omega) * sin_theta_mid;
+            
+            // Check convergence
+            if (fabs(g) < tol) {
+                return {tA, T};
+            }
+            
+            // Avoid division by zero
+            if (abs_sin_theta_mid < 1e-10) {
+                return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+            }
+            
+            // Compute derivative dg/dtA using chain rule
+            // theta_mid = sign * arccos(cos_theta_mid) + theta_shift
+            // d(arccos(u))/du = -1/sqrt(1-u²) = -1/|sin(arccos(u))|
+            // d(cos_theta_mid)/dtA = d2 * omega * sin(theta1)
+            // d(theta_mid)/dtA = sign * (-1/|sin(arccos_val)|) * d(cos_theta_mid)/dtA
+            //                  = -sign / |sin(arccos_val)| * d2 * omega * sin(theta1)
+            // Note: |sin(arccos_val)| = sqrt(1 - cos²_theta_mid), but we can use sin_theta_mid if careful with sign
+            double sin_arccos_val = sqrt(1.0 - cos_theta_mid * cos_theta_mid);  // Always positive
+            if (sin_arccos_val < 1e-10) {
+                return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+            }
+            double dtheta_mid_dtA = -signD / sin_arccos_val * d2 * omega * sin_theta1;
+            
+            // dT/dtA = 2 * (dtheta_mid/dtA - delta_1 * omega) / (d2 * omega)
+            double dT_dtA = 2.0 * (dtheta_mid_dtA - delta_1 * omega) / (d2 * omega);
+            
+            // dg/dtA = d(f1)/d(tA) where f1 depends on tA directly and through T(tA) and theta_mid
+            // = 2*cos(theta1) + (2/(d2*omega))*cos(theta_mid)*dtheta_mid/dtA + wind_ratio*dT/dtA
+            double dg_dtA = 2.0 * cos_theta1 + 
+                           (2.0 / (d2 * omega)) * cos_theta_mid * dtheta_mid_dtA + 
+                           wind_ratio * dT_dtA;
+            
+            // Avoid division by zero or near-zero derivative
+            if (fabs(dg_dtA) < 1e-10) {
+                return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+            }
+            
+            // Newton update
+            tA = tA - g / dg_dtA;
+            
+            // Keep tA in reasonable bounds
+            if (tA < 0) tA = 0;
+            if (tA > 4.0 * twopi / omega) tA = 4.0 * twopi / omega;
+        }
+        
+        // Did not converge
+        return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+    }
+
+    /**
+     * @brief Optimized BBB path solver using true 1D Newton-Raphson.
+     * 
+     * This approach:
+     * 1. Eliminates T analytically from f2=0
+     * 2. Solves the resulting 1D equation in tA using Newton-Raphson
+     * 
+     * The search space is: 
+     * - tA initial guesses from 0 to t2pi (10 points)
+     * - k from -2 to 2 (5 values)
+     * - arccos sign: +1 or -1 (2 values)
+     * - theta_shift: -2π, 0, 2π (3 values)
+     * 
+     * Total: 10 * 5 * 2 * 3 = 300 initial guesses, compared to 10*10*5 = 500 for original
+     */
+    void trochoidBBB(double x0, double y0, double phit1, double xf, double yf, double phif, double delta_1, double radius, double wind_ratio, bool periodic, TrochoidStateSpace::PathType &path) {
+        double omega = 1.0 / radius;
+        double t2pi = twopi * radius;
+
+        double xt10 = x0 - 1.0 / (delta_1 * omega) * sin(phit1);
+        double yt10 = y0 + 1.0 / (delta_1 * omega) * cos(phit1);
+
+        double d2 = -delta_1;
+        double d3 = delta_1;
+        
+        // Precompute y-constraint constant: C_y = yt10 - yf - (1/(d3*omega))*cos(phif)
+        double C_y = yt10 - yf - 1.0 / (d3 * omega) * cos(phif);
+
+        // Grid resolution for tA search
+        constexpr int numTestPts = 10;
+        
+        // theta_shift values to try
+        constexpr double shifts[] = {-twopi, 0.0, twopi};
+        constexpr int numShifts = 3;
+        
+        // Track unique roots to avoid duplicates  
+        std::array<std::array<double, 3>, numTestPts * 5 * 2 * numShifts> rootsComputed;
+        int numRootsFound = 0;
+        constexpr double sameRootEpsilon = 0.001;
+        
+        for (int kint = -2; kint < 3; kint++) {
+            double k = static_cast<double>(kint);
+            
+            for (int l = 0; l < numTestPts; l++) {
+                double tA_init = static_cast<double>(l + 1) * t2pi / numTestPts;
+                
+                // Try both arccos signs
+                for (int sign = -1; sign <= 1; sign += 2) {
+                    // Try different theta_shift values
+                    for (int si = 0; si < numShifts; si++) {
+                        double theta_shift = shifts[si];
+                        
+                        auto [tA, T] = solveBBB_1D(tA_init, sign, theta_shift, k, C_y, delta_1, omega, 
+                                                   phit1, phif, xt10, xf, wind_ratio);
+                        
+                        if (std::isnan(tA) || std::isnan(T)) {
+                            continue;
+                        }
+                        
+                        double tB = tA + T / 2 + (phif - phit1 + k * twopi) / (2 * d2 * omega);
+                        
+                        // Check if this root was already found
+                        bool rootAlreadyFound = false;
+                        for (int i = 0; i < numRootsFound; i++) {
+                            if (fabs(rootsComputed[i][0] - tA) <= sameRootEpsilon &&
+                                fabs(rootsComputed[i][1] - tB) <= sameRootEpsilon &&
+                                fabs(rootsComputed[i][2] - T) <= sameRootEpsilon) {
+                                rootAlreadyFound = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!rootAlreadyFound && numRootsFound < static_cast<int>(rootsComputed.size())) {
+                            rootsComputed[numRootsFound] = {tA, tB, T};
+                            numRootsFound++;
+                            
+                            checkConditionsBBB(delta_1, tA, tB, T, xt10, yt10, phit1, 
+                                              xf, yf, phif, radius, wind_ratio, periodic, path);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     bool isLongPathCase(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double /* wind_ratio */)
@@ -735,6 +943,20 @@ TrochoidStateSpace::PathType TrochoidStateSpace::trochoidRLR(double x0, double y
 {
     TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[4]);
     trochoidBBB(x0, y0, phi0, xf, yf, phif, -1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidLRL_original(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[5]);
+    trochoidBBB_original(x0, y0, phi0, xf, yf, phif, 1, radius, wind_ratio, periodic, path);
+    return path;
+}
+
+TrochoidStateSpace::PathType TrochoidStateSpace::trochoidRLR_original(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic)
+{
+    TrochoidStateSpace::PathType path(TrochoidStateSpace::dubinsPathType()[4]);
+    trochoidBBB_original(x0, y0, phi0, xf, yf, phif, -1, radius, wind_ratio, periodic, path);
     return path;
 }
 
