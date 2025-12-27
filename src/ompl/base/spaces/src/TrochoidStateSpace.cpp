@@ -827,17 +827,17 @@ namespace
             minLength = len;
             path = tmp;
         }
-        // if (!isLongPathCase(x0, y0, phi0, xf, yf, phif, radius, wind_ratio)) {
-        //     tmp = trochoidRLR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
-        //     if ((len = tmp.length()) < minLength)
-        //     {
-        //         minLength = len;
-        //         path = tmp;
-        //     }
-        //     tmp = trochoidLRL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
-        //     if ((len = tmp.length()) < minLength)
-        //         path = tmp;
-        // }
+        if (!isLongPathCase(x0, y0, phi0, xf, yf, phif, radius, wind_ratio)) {
+            tmp = TrochoidStateSpace::trochoidRLR(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+            if ((len = tmp.length()) < minLength)
+            {
+                minLength = len;
+                path = tmp;
+            }
+            tmp = TrochoidStateSpace::trochoidLRL(x0, y0, phi0, xf, yf, phif, radius, wind_ratio, periodic);
+            if ((len = tmp.length()) < minLength)
+                path = tmp;
+        }
         return path;
     }
 
