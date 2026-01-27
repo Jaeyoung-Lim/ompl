@@ -114,7 +114,7 @@ def plotPath(axs, path, name):
     return
 
 # return the full path to the demo_DubinsAirplane executable or exit
-def findExecutable(exec_name='demo_TrochoidAirplane'):
+def findExecutable(exec_name='demo_AsymDubinsAirplane'):
     # check if demo_DubinsAirplane is in the $PATH already
     executable = shutil.which(exec_name)
     # If not check in the current directory, parent directory, and "grandparent" directory (recursively)
@@ -141,35 +141,39 @@ if __name__ == "__main__":
     exec_path = findExecutable()
     radius = 2
     maxpitch = 0.15
+    minpitch = -0.05
     windHeading = 0.0
     windRatio = 0.3
     # change command line arguments for demo_TrochoidAirplane as needed here
     high_altitude_path = getPath(exec_path, 
-                   trochoidairplane='',
+                #    trochoidairplane='',
                    radius=radius,
                    maxpitch=maxpitch,
-                   windheading=windHeading,
-                   windratio=windRatio,
-                   start="0 0 0 0",
-                   goal="2 2 10 0")
-
-    low_altitude_path = getPath(exec_path, 
-                   trochoidairplane='',
-                   radius=radius,
-                   maxpitch=maxpitch,
-                   windheading=windHeading,
-                   windratio=windRatio,
-                   start="0 0 0 0",
-                   goal="2 2 2 0")
-
-    medium_altitude_path = getPath(exec_path, 
-                   trochoidairplane='',
-                   radius=radius,
-                   maxpitch=maxpitch,
+                   minpitch=minpitch,
                    windheading=windHeading,
                    windratio=windRatio,
                    start="0 0 0 0",
                    goal="2 2 5 0")
+
+    low_altitude_path = getPath(exec_path, 
+                #    trochoidairplane='',
+                   radius=radius,
+                   maxpitch=maxpitch,
+                   minpitch=minpitch,
+                   windheading=windHeading,
+                   windratio=windRatio,
+                   start="0 0 0 0",
+                   goal="2 2 -5 0")
+
+    # medium_altitude_path = getPath(exec_path, 
+    #             #    trochoidairplane='',
+    #                radius=radius,
+    #                maxpitch=maxpitch,
+    #             #    minpitch=minpitch,
+    #                windheading=windHeading,
+    #                windratio=windRatio,
+    #                start="0 0 0 0",
+    #                goal="2 2 5 0")
 
 
     # or call readPath() on a precomputed path
@@ -179,7 +183,7 @@ if __name__ == "__main__":
 
     plotPath(axs, high_altitude_path, 'High Altitude')
     plotPath(axs, low_altitude_path, 'Low Altitude')
-    plotPath(axs, medium_altitude_path, 'Medium Altitude')
+    # plotPath(axs, medium_altitude_path, 'Medium Altitude')
     axs.legend(loc='upper left')
 
     # plt.grid()
