@@ -140,7 +140,7 @@ if __name__ == "__main__":
     # hard code path to demo_TrochoidAirplane executable here if findExecutable() fails to find it
     exec_path = findExecutable()
     radius = 2
-    maxpitch = 0.15
+    maxpitch = 0.05
     minpitch = -0.05
     windHeading = 0.0
     windRatio = 0.3
@@ -153,7 +153,7 @@ if __name__ == "__main__":
                    windheading=windHeading,
                    windratio=windRatio,
                    start="0 0 0 0",
-                   goal="2 2 5 0")
+                   goal="2 2 2 0")
 
     low_altitude_path = getPath(exec_path, 
                 #    trochoidairplane='',
@@ -163,7 +163,7 @@ if __name__ == "__main__":
                    windheading=windHeading,
                    windratio=windRatio,
                    start="0 0 0 0",
-                   goal="2 2 -5 0")
+                   goal="2 2 -2 0")
 
     # medium_altitude_path = getPath(exec_path, 
     #             #    trochoidairplane='',
