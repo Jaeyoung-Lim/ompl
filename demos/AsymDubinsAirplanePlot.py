@@ -140,8 +140,8 @@ if __name__ == "__main__":
     # hard code path to demo_TrochoidAirplane executable here if findExecutable() fails to find it
     exec_path = findExecutable()
     radius = 2
-    maxpitch = 0.05
-    minpitch = -0.05
+    maxpitch = 0.15
+    minpitch = -0.15
     windHeading = 0.0
     windRatio = 0.3
     # change command line arguments for demo_TrochoidAirplane as needed here
@@ -152,8 +152,18 @@ if __name__ == "__main__":
                    minpitch=minpitch,
                    windheading=windHeading,
                    windratio=windRatio,
-                   start="0 0 0 0",
-                   goal="2 2 2 0")
+                   start="0 0 0 -0.8",
+                   goal="15 2 7 -0.8")
+
+    medium_altitude_path = getPath(exec_path, 
+                #    trochoidairplane='',
+                   radius=radius,
+                   maxpitch=maxpitch,
+                   minpitch=minpitch,
+                   windheading=windHeading,
+                   windratio=windRatio,
+                   start="0 0 0 -0.8",
+                   goal="15 2 4 -0.8")
 
     low_altitude_path = getPath(exec_path, 
                 #    trochoidairplane='',
@@ -162,29 +172,19 @@ if __name__ == "__main__":
                    minpitch=minpitch,
                    windheading=windHeading,
                    windratio=windRatio,
-                   start="0 0 0 0",
-                   goal="2 2 -2 0")
-
-    # medium_altitude_path = getPath(exec_path, 
-    #             #    trochoidairplane='',
-    #                radius=radius,
-    #                maxpitch=maxpitch,
-    #             #    minpitch=minpitch,
-    #                windheading=windHeading,
-    #                windratio=windRatio,
-    #                start="0 0 0 0",
-    #                goal="2 2 5 0")
+                   start="0 0 0 -0.8",
+                   goal="15 2 2 -0.8")
 
 
     # or call readPath() on a precomputed path
     #path = readPath('/my/path.dat')
-    fig = plt.figure("Path visualization", figsize=(4.0, 4.2))
+    fig = plt.figure("Path visualization", figsize=(5.0, 4.2))
     axs = fig.add_subplot(1, 1, 1, projection='3d')
 
     plotPath(axs, high_altitude_path, 'High Altitude')
     plotPath(axs, low_altitude_path, 'Low Altitude')
-    # plotPath(axs, medium_altitude_path, 'Medium Altitude')
-    axs.legend(loc='upper left')
+    plotPath(axs, medium_altitude_path, 'Medium Altitude')
+    axs.legend(loc='upper right')
 
     # plt.grid()
     fig.tight_layout()
