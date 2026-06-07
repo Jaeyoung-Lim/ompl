@@ -72,8 +72,9 @@ namespace ompl::base
         {
         public:
             PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ,
-                     unsigned int numTurns = 0)
-              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), numTurns_(numTurns)
+                     unsigned int numTurns = 0, double periodicPathLength = 0.)
+              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ),
+                numTurns_(numTurns), periodicPathLength_(periodicPathLength)
             {
             }
             PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double phi)
@@ -93,6 +94,7 @@ namespace ompl::base
             double deltaZ_;
             double phi_{0.};
             unsigned int numTurns_{0};
+            double periodicPathLength_{0.};
         };
 
         /** A state in R^3 x SO(2): (x, y, z, yaw) */

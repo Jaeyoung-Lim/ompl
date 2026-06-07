@@ -122,7 +122,7 @@ TrochoidAirplaneStateSpace::PathType TrochoidAirplaneStateSpace::getPath(const S
         double lengthPeriodicPath = periodic_path.length();
 
         unsigned int k = std::floor((std::abs(dz) / tanMaxPitch_ - len) / lengthPeriodicPath);
-        return PathType{path, rho_, eta_, psi_, dz, k};
+        return PathType{path, rho_, eta_, psi_, dz, k, lengthPeriodicPath};
     }
 
     // medium altitude path
@@ -228,7 +228,7 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
             // high altitude path
             ///TODO: Find Trochoidal periodic paths
             auto periodic_path = TrochoidStateSpace::getPath(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
-            double lengthPeriodicPath = periodic_path.length();
+            double lengthPeriodicPath = path.periodicPathLength_;
             auto lengthSpiral = lengthPeriodicPath * path.numTurns_;
             auto lengthPath = path.path_.length();
             auto length = lengthSpiral + lengthPath, dist = t * length;
@@ -270,7 +270,7 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
 
 double TrochoidAirplaneStateSpace::PathType::length() const
 {
-    double hlen = turnRadius_ * (path_.length() + twopi * numTurns_ + phi_);
+    double hlen = path_.length() + periodicPathLength_ * numTurns_ + turnRadius_ * std::abs(phi_);
     return std::sqrt(hlen * hlen + deltaZ_ * deltaZ_);
 }
 
