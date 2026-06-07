@@ -108,7 +108,7 @@ TrochoidAirplaneStateSpace::PathType TrochoidAirplaneStateSpace::getPath(const S
 {
     auto s1 = state1->as<StateType>();
     auto s2 = state2->as<StateType>();
-    auto path = trochoidSpace_.trochoid(state1, state2, rho_, eta_, psi_);
+    auto path = TrochoidStateSpace::getPath(state1, state2, rho_, eta_, psi_);
     double dz = (*s2)[2] - (*s1)[2], len = path.length();
     if (std::abs(dz) <= len * tanMaxPitch_)
     {
@@ -118,7 +118,7 @@ TrochoidAirplaneStateSpace::PathType TrochoidAirplaneStateSpace::getPath(const S
     else if (std::abs(dz) > (len + twopi * rho_) * tanMaxPitch_)
     {
         // high altitude path
-        auto periodic_path = trochoidSpace_.trochoid(state1, state1, rho_, eta_, psi_, true);
+        auto periodic_path = TrochoidStateSpace::getPath(state1, state1, rho_, eta_, psi_, true);
         double lengthPeriodicPath = periodic_path.length();
 
         unsigned int k = std::floor((std::abs(dz) / tanMaxPitch_ - len) / lengthPeriodicPath);
@@ -227,7 +227,7 @@ void TrochoidAirplaneStateSpace::interpolate(const State *from, const State *to,
         {
             // high altitude path
             ///TODO: Find Trochoidal periodic paths
-            auto periodic_path = trochoidSpace_.trochoid(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
+            auto periodic_path = TrochoidStateSpace::getPath(from, from, path.turnRadius_, path.windRatio_, path.windHeading_, true);
             double lengthPeriodicPath = periodic_path.length();
             auto lengthSpiral = lengthPeriodicPath * path.numTurns_;
             auto lengthPath = path.path_.length();

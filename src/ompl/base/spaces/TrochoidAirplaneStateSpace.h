@@ -71,12 +71,12 @@ namespace ompl::base
         class PathType
         {
         public:
-            PathType(TrochoidStateSpace::TrochoidPath const &path, double turnRadius, double windRatio, double windHeading, double deltaZ,
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ,
                      unsigned int numTurns = 0)
               : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), numTurns_(numTurns)
             {
             }
-            PathType(TrochoidStateSpace::TrochoidPath const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double phi)
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double phi)
               : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), phi_(phi)
             {
             }
@@ -86,7 +86,7 @@ namespace ompl::base
 
             friend std::ostream &operator<<(std::ostream &os, const PathType &path);
 
-            TrochoidStateSpace::TrochoidPath path_;
+            TrochoidStateSpace::PathType path_;
             double turnRadius_{1.};
             double windRatio_{0.};
             double windHeading_{0.};
