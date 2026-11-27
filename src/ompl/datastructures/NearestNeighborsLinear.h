@@ -40,6 +40,8 @@
 #include "ompl/datastructures/NearestNeighbors.h"
 #include "ompl/util/Exception.h"
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 namespace ompl
 {
@@ -118,27 +120,36 @@ namespace ompl
         /// Return the k nearest neighbors in sorted order
         void nearestK(const _T &data, std::size_t k, std::vector<_T> &nbh) const override
         {
-            nbh = data_;
-            if (nbh.size() > k)
+            // Evaluate each distance exactly once; sorting with a comparator that calls the distance function
+            // would evaluate it O(n log k) times, which dominates for expensive (e.g. non-metric) distances.
+            std::vector<std::pair<double, std::size_t>> dist;
+            dist.reserve(data_.size());
+            for (std::size_t i = 0; i < data_.size(); ++i)
+                dist.emplace_back(NearestNeighbors<_T>::distFun_(data_[i], data), i);
+            if (dist.size() > k)
             {
-                std::partial_sort(nbh.begin(), nbh.begin() + k, nbh.end(),
-                                  ElemSort(data, NearestNeighbors<_T>::distFun_));
-                nbh.resize(k);
+                std::partial_sort(dist.begin(), dist.begin() + k, dist.end(), ElemSort());
+                dist.resize(k);
             }
             else
             {
-                std::sort(nbh.begin(), nbh.end(), ElemSort(data, NearestNeighbors<_T>::distFun_));
+                std::sort(dist.begin(), dist.end(), ElemSort());
             }
+            copyIndexed(dist, nbh);
         }
 
         /// Return the nearest neighbors within distance \c radius in sorted order
         void nearestR(const _T &data, double radius, std::vector<_T> &nbh) const override
         {
-            nbh.clear();
-            for (const auto &d : data_)
-                if (NearestNeighbors<_T>::distFun_(d, data) <= radius)
-                    nbh.push_back(d);
-            std::sort(nbh.begin(), nbh.end(), ElemSort(data, NearestNeighbors<_T>::distFun_));
+            std::vector<std::pair<double, std::size_t>> dist;
+            for (std::size_t i = 0; i < data_.size(); ++i)
+            {
+                double d = NearestNeighbors<_T>::distFun_(data_[i], data);
+                if (d <= radius)
+                    dist.emplace_back(d, i);
+            }
+            std::sort(dist.begin(), dist.end(), ElemSort());
+            copyIndexed(dist, nbh);
         }
 
         std::size_t size() const override
@@ -156,20 +167,21 @@ namespace ompl
         std::vector<_T> data_;
 
     private:
+        /** \brief Orders (distance, index) pairs by distance, breaking ties by insertion order */
         struct ElemSort
         {
-            ElemSort(const _T &e, const typename NearestNeighbors<_T>::DistanceFunction &df) : e_(e), df_(df)
+            bool operator()(const std::pair<double, std::size_t> &a, const std::pair<double, std::size_t> &b) const
             {
+                return a.first < b.first || (a.first == b.first && a.second < b.second);
             }
-
-            bool operator()(const _T &a, const _T &b) const
-            {
-                return df_(a, e_) < df_(b, e_);
-            }
-
-            const _T &e_;
-            const typename NearestNeighbors<_T>::DistanceFunction &df_;
         };
+
+        void copyIndexed(const std::vector<std::pair<double, std::size_t>> &dist, std::vector<_T> &nbh) const
+        {
+            nbh.resize(dist.size());
+            for (std::size_t i = 0; i < dist.size(); ++i)
+                nbh[i] = data_[dist[i].second];
+        }
     };
 }
 

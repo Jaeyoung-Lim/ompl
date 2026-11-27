@@ -40,7 +40,10 @@
 #include <array>
 #include <cmath>
 #include <queue>
+#include <algorithm>
 #include <boost/math/constants/constants.hpp>
+#include <boost/math/tools/minima.hpp>
+#include <boost/math/tools/roots.hpp>
 
 using namespace ompl::base;
 
@@ -206,56 +209,160 @@ namespace
         }
     }
 
-    /**
-     * @brief Solve BSB Trochoid path. Closed form solution for delta_1==delta_2, or numerically solved with Eq. 39 in
-     * Techy (2009)
-     *
-     * @param p0      Guess value of t_A for root solving
-     * @param delta_1 Turning direction of the starting trochoid
-     * @param delta_2 Turning direction of the ending trochoid
-     * @param k       Number of turns
-     * @param xt10    Constant defined in Eq. (20) in Techy (2009)
-     * @param yt10    Constant defined in Eq. (21) in Techy (2009)
-     * @param phit1   Initial heading in trochoid frame
-     * @param xt20    Constaint defined in Eq. (22) in Techy (2009)
-     * @param yt20    Constant defined in Eq. (23) in Techy (2009)
-     * @param phit2   Target heading in trochoid frame
-     * @param radius  Minimum turn radius in air-relative frame
-     * @param wind_ratio Wind ratio
-     * @return double
-     */
-    double fixedPointBSB( double p0, double delta_1, double delta_2, double k, double xt10, double yt10, double phit1, double xt20, double yt20, double phit2, double radius, double wind_ratio )
-    {
-        constexpr double tol = 0.0001;
-        constexpr int N = 50;
-        std::array<double, N> pvec;
-        pvec[0] = p0;
-        int i = 1;
-        double omega = 1./radius;
-        while (i < N)
-        {
-            double p = pvec[i-1];
-            double E = (delta_1-delta_2) / ( delta_2*delta_1*omega ) - (yt20-yt10)/wind_ratio;
-            double F = (xt20 - xt10) / wind_ratio + (delta_1 / delta_2 - 1) * p +
-                       (phit1 - phit2 + k * twopi) / (delta_2 * omega);
-            double G = (yt20 - yt10) + 1.0/wind_ratio*(delta_2-delta_1)/(delta_1*delta_2*omega);
-            double f = E*cos(delta_1*omega*p + phit1) + F*sin(delta_1*omega*p + phit1) - G;
-            double fBar = - E*sin(delta_1*omega*p + phit1)*delta_1*omega 
-                        + F*cos(delta_1*omega*p + phit1)*delta_1*omega
-                        + sin(delta_1*omega*p + phit1)*(delta_1/delta_2-1);
-            pvec[i] = p - f/fBar;
-            if ( fabs( pvec[i] - pvec[i-1]) < tol ){
-            return pvec[i];
-            }
-            i++;
-        }
-        return std::numeric_limits<double>::quiet_NaN();
-    }
 
+
+    /**
+     * @brief Solve for trochoid RSL / LSR paths (delta_2 == -delta_1).
+     *
+     * The problem is solved in the air-relative frame, where the trochoids become circular arcs of radius r and the
+     * target drifts with velocity -wind_ratio along the x axis (Wu and Chen, "Minimum-Time Paths for Dubins Airplane
+     * in Steady Wind", JGCD 2025, Lemma 3). Let beta be the heading of the straight segment, d its length, alpha and
+     * gamma the angles of the first and last arc, and c1, c3(T) the centers of the first and last circle, where
+     * c3(T) - c1 = (Kx - w T, Ky). Tangency of the straight segment to both circles gives
+     *
+     *   c3(T) - c1 = d (cos beta, sin beta) + (delta_1 - delta_2) r (sin beta, -cos beta).
+     *
+     * The arc angles alpha = delta_1 (beta - phi0) and gamma = delta_2 (phif - beta) (both mod 2 pi) depend on beta
+     * only, and T = r (alpha + gamma) + d. Projecting onto the segment direction yields
+     *
+     *   T(beta) = (r (alpha + gamma) + Kx cos beta + Ky sin beta) / (1 + w cos beta),
+     *
+     * and projecting onto its normal leaves the scalar equation
+     *
+     *   F(beta) = -(Kx - w T(beta)) sin beta + Ky cos beta + (delta_1 - delta_2) r = 0.
+     *
+     * F is smooth except where alpha or gamma wrap around (beta = phi0, beta = phif). All sign changes on each smooth
+     * piece are bracketed on a fixed grid and refined with TOMS 748, so the cost is constant.
+     *
+     * @param x0 Start position x
+     * @param y0 Start position y
+     * @param phi0 Start heading
+     * @param xf Target position x
+     * @param yf Target position y
+     * @param phif End heading
+     * @param delta_1 Turning direction of starting arc
+     * @param delta_2 Turning direction of ending arc, must be -delta_1
+     * @param radius Minimum air-relative turning radius
+     * @param wind_ratio Wind ratio
+     * @param periodic Whether the path is periodic
+     * @param path Solved trochoid path, updated if a shorter path is found
+     */
+    void trochoidBSBMixed(double x0, double y0, double phi0, double xf, double yf, double phif, double delta_1,
+                          double delta_2, double radius, double wind_ratio, bool periodic,
+                          TrochoidStateSpace::PathType &path)
+    {
+        const double r = radius, w = wind_ratio, s = delta_1 - delta_2;
+        const double Kx = (xf - delta_2 * r * std::sin(phif)) - (x0 - delta_1 * r * std::sin(phi0));
+        const double Ky = (yf + delta_2 * r * std::cos(phif)) - (y0 + delta_1 * r * std::cos(phi0));
+        auto wrap = [](double a)
+        {
+            a = std::fmod(a, twopi);
+            return a < 0. ? a + twopi : a;
+        };
+
+        // Smooth pieces of F are separated by the headings where the first or last arc vanishes
+        std::array<double, 4> breaks{0., wrap(phi0), wrap(phif), twopi};
+        std::sort(breaks.begin(), breaks.end());
+
+        constexpr int gridPerTwoPi = 32;
+        // In wind, an extra full loop on the last arc lets the target drift into reach, which can be the only
+        // feasible RSL / LSR path (e.g. for periodic loiter paths), so gamma in [0, 4 pi) is searched as well.
+        for (int extraLoops = 0; extraLoops <= 1; ++extraLoops)
+        for (std::size_t piece = 0; piece + 1 < breaks.size(); ++piece)
+        {
+            const double lo = breaks[piece], hi = breaks[piece + 1];
+            if (hi - lo < 1e-12)
+                continue;
+            // alpha and gamma are linear in beta on this piece
+            const double mid = .5 * (lo + hi);
+            const double alphaMid = wrap(delta_1 * (mid - phi0));
+            const double gammaMid = wrap(delta_2 * (phif - mid)) + twopi * extraLoops;
+            auto arcLength = [&](double beta)
+            { return r * (alphaMid + gammaMid + (delta_1 - delta_2) * (beta - mid)); };
+            auto totalTime = [&](double beta, double sb, double cb)
+            { return (arcLength(beta) + Kx * cb + Ky * sb) / (1. + w * cb); };
+            auto F = [&](double beta)
+            {
+                const double sb = std::sin(beta), cb = std::cos(beta);
+                return -(Kx - w * totalTime(beta, sb, cb)) * sb + Ky * cb + s * r;
+            };
+
+            auto accept = [&](double beta)
+            {
+                const double sb = std::sin(beta), cb = std::cos(beta);
+                const double T = totalTime(beta, sb, cb);
+                const double arcs = arcLength(beta);
+                const double d = T - arcs;
+                if (d < -TROCHOID_EPS || T <= 0.)
+                    return;
+                const double tA = r * (alphaMid + delta_1 * (beta - mid));
+                const double tC = r * (gammaMid - delta_2 * (beta - mid));
+                if (tA < -TROCHOID_EPS || tC < -TROCHOID_EPS)
+                    return;
+                if (periodic ? (T <= 0.1 || T >= path.length()) : T >= path.length())
+                    return;
+                // Guard against spurious roots at the discontinuities by checking the endpoint in the ground frame
+                double ex, ey, eh;
+                computeEndpointBSB(delta_1, delta_2, std::max(tA, 0.), std::max(tA, 0.) + std::max(d, 0.), T, phi0,
+                                   radius, wind_ratio, ex, ey, eh);
+                if (std::abs(ex + x0 - xf) > 1e-3 || std::abs(ey + y0 - yf) > 1e-3)
+                    return;
+                path.length_[0] = std::max(tA, 0.);
+                path.length_[1] = std::max(d, 0.);
+                path.length_[2] = std::max(tC, 0.);
+            };
+            auto solveBracket = [&](double a, double b, double fa, double fb)
+            {
+                std::uintmax_t maxIter = 50;
+                auto res = boost::math::tools::toms748_solve(F, a, b, fa, fb,
+                                                             boost::math::tools::eps_tolerance<double>(48), maxIter);
+                accept(.5 * (res.first + res.second));
+            };
+
+            constexpr int maxGrid = gridPerTwoPi + 4;
+            const int n = std::max(4, static_cast<int>(std::ceil(gridPerTwoPi * (hi - lo) / twopi)));
+            std::array<double, maxGrid + 1> bs, fs;
+            for (int i = 0; i <= n; ++i)
+            {
+                bs[i] = lo + (hi - lo) * i / n;
+                fs[i] = F(bs[i]);
+            }
+            for (int i = 1; i <= n; ++i)
+            {
+                if (fs[i - 1] == 0.)
+                    accept(bs[i - 1]);
+                else if (fs[i - 1] * fs[i] < 0.)
+                    solveBracket(bs[i - 1], bs[i], fs[i - 1], fs[i]);
+            }
+            if (fs[n] == 0.)
+                accept(bs[n]);
+
+            // Two close roots can hide between grid points, where |F| has a local minimum that does not change sign
+            // on the grid. Refine such minima if a parabola through the neighbouring samples suggests a crossing.
+            for (int i = 1; i < n; ++i)
+            {
+                const double f0 = fs[i - 1], f1 = fs[i], f2 = fs[i + 1];
+                if (f0 * f1 <= 0. || f1 * f2 <= 0. || std::abs(f1) > std::abs(f0) || std::abs(f1) > std::abs(f2))
+                    continue;
+                const double curvature = f0 - 2. * f1 + f2;  // second difference, in units of the grid step
+                const double vertex = f1 - (f2 - f0) * (f2 - f0) / (8. * curvature);
+                if (vertex * f1 > 0. && std::abs(vertex) > .25 * std::abs(f1))
+                    continue;
+                const double sign = f1 > 0. ? 1. : -1.;
+                auto res = boost::math::tools::brent_find_minima([&](double b) { return sign * F(b); }, bs[i - 1],
+                                                                 bs[i + 1], 40);
+                const double bMin = res.first, fMin = sign * res.second;
+                if (fMin * f1 >= 0.)
+                    continue;
+                solveBracket(bs[i - 1], bMin, f0, fMin);
+                solveBracket(bMin, bs[i + 1], fMin, f2);
+            }
+        }
+    }
 
     /**
      * @brief Solve for trochoid BSB paths
-     * 
+     *
      * @param x0 Start position x
      * @param y0 Start position y
      * @param phi0 Start heading
@@ -296,42 +403,8 @@ namespace
                 double tB = tA + (fmod(phit1 - phit2, twopi) - k * twopi) / (delta_1 * twopi) * t2pi;
                 checkConditionsBSB(delta_1, delta_2, tA, tB, xt10, yt10, phi0, phit1, xt20, yt20, phit2, xf, yf, radius, wind_ratio, periodic, path);
             }
-        } else {  // RSL/LSR: numerical solution
-            for (int k_int = -2; k_int < 2; k_int++){
-                double k = (double)k_int;
-                constexpr int numTestPts = 10;
-                std::array<double, numTestPts> rootsComputed;
-                constexpr double sameRootEpsilon = 0.001;
-                for ( int l = 0; l < numTestPts; l++){
-                    bool rootAlreadyfound = false;
-                    // initial guess
-                    double p0 = (double)(l+1) * t2pi / (double)numTestPts;
-                    // root solving 
-                    double tA = fixedPointBSB( p0, delta_1, delta_2, k, xt10, yt10, phit1, xt20, yt20, phit2, radius, wind_ratio);
-                    // check bounds
-                    if (tA < 0 && fabs(tA) < TROCHOID_EPS) {
-                        tA = 0.0;
-                    }
-                    if ( tA > t2pi || tA < 0){
-                        tA = tA - t2pi*floor(tA/t2pi);
-                    }
-                    // check if the root has already been computed 
-                    if ( l > 0 ){
-                    for (int i = 0; i < l; i++){
-                        if ( fabs( rootsComputed[i] - tA ) <= sameRootEpsilon ){
-                        rootAlreadyfound = true;
-                        } 
-                    }
-                    }
-                    // store the computed root
-                    rootsComputed[l] = tA;
-                    // if the root is unique
-                    if ( !rootAlreadyfound ){
-                        double tB = delta_1 / delta_2 * tA + (phit1 - phit2 + k * twopi) / (delta_2 * omega);
-                        checkConditionsBSB(delta_1, delta_2, tA, tB, xt10, yt10, phi0, phit1, xt20, yt20, phit2, xf, yf, radius, wind_ratio, periodic, path);
-                    }
-                }
-            }
+        } else {  // RSL/LSR: scalar root finding in the air-relative frame
+            trochoidBSBMixed(x0, y0, phi0, xf, yf, phif, delta_1, delta_2, radius, wind_ratio, periodic, path);
         }
 
         return;
