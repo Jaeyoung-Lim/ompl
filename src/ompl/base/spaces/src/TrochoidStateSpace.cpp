@@ -452,77 +452,73 @@ namespace
     }
 
     /**
-     * @brief Root solve for BBB path type. Implementation of Section V. in Techy (2009).
+     * @brief Find all roots of a scalar function on [lo, hi] given the points that split it into intervals on which
+     * the function is monotonic. A root is reported where the function changes sign over an interval (refined by
+     * bisection) or vanishes at a break point.
      *
-     * @param p0 Guess value for tA
-     * @param p1 Guess value for T
-     * @param delta_1 Turning direction of start trochoid
-     * @param k Number of turns
-     * @param xt10 Constant defined in Eq. (A1)
-     * @param yt10 Constant defined in Eq. (A2)
-     * @param phit1 Constant defined in Eq. (A3)
-     * @param xf Relative Target position x
-     * @param yf Relative Target position y
-     * @param phif Target heading
-     * @param radius  Minimum turn radius in air-relative frame
-     * @param wind_ratio Wind ratio
-     * @return Result of roots solved as a pair of doubles
+     * @param f       Function to find the roots of
+     * @param breaks  Sorted break points, breaks[0] = lo and breaks[numBreaks - 1] = hi
+     * @param numBreaks Number of break points
+     * @param roots   Output array of roots, sorted in increasing order
+     * @return Number of roots found
      */
-    std::pair<double, double> fixedpointBBB(double p0, double p1, double delta_1, double k, double xt10, double yt10,
-                                            double phit1, double xf, double yf, double phif, double radius,
-                                            double wind_ratio)
+    template <typename Function, std::size_t NB, std::size_t NR>
+    std::size_t monotonicIntervalRoots(const Function &f, const std::array<double, NB> &breaks, std::size_t numBreaks,
+                                       std::array<double, NR> &roots)
     {
-        // Implement TrochoidBBB
-        constexpr double tol = 0.0001;
-        constexpr int N = 50;
-        double d2 = -delta_1;
-        double d3 = delta_1;
-        double omega = 1.0/radius;
-        std::array<double, N> pvec1;
-        std::array<double, N> pvec2;
-        pvec1[0] = p0;
-        pvec2[0] = p1;
-        int i = 1;
-        while (i < N)
+        constexpr double zeroTol = 1e-12;
+        constexpr int maxBisections = 100;
+        std::size_t numRoots = 0;
+        double fLo = f(breaks[0]);
+        for (std::size_t i = 0; i + 1 < numBreaks && numRoots < NR; ++i)
         {
-            double tA = pvec1[i-1];
-            double T = pvec2[i-1];
-            // vector F = [f1; f2];
-            double f1 =
-                2. / (delta_1 * omega) * sin(delta_1 * omega * tA + phit1) + wind_ratio * T + xt10 - xf +
-                1.0 / (d3 * omega) * sin(phif) +
-                2 / (d2 * omega) * sin(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA);
-            double f2 = -2 * 1.0 / (delta_1 * omega) * cos(delta_1 * omega * tA + phit1) + yt10 - yf -
-                        1.0 / (d3 * omega) * cos(phif) -
-                        2 * 1.0 / (d2 * omega) *
-                            cos(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA);
-            // matrix FBar = [ a b ; c d ];
-            double a = 2 * 1.0 *
-                       (cos(delta_1 * omega * tA + phit1) -
-                        cos(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA));
-            double b =
-                wind_ratio + 1.0 * cos(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA);
-            double c = 2 * 1.0 *
-                       (sin(delta_1 * omega * tA + phit1) -
-                        sin(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA));
-            double d = 1.0 * sin(d2 * omega * T / 2 + (phif + phit1 + k * twopi) / 2 + delta_1 * omega * tA);
-            double det = a*d - b*c;
-            // pvec = x - FBar*FBarInv;
-            pvec1[i] = pvec1[i-1] - (d/det*f1 - b/det*f2);
-            pvec2[i] = pvec2[i-1] - (-c/det*f1 + a/det*f2);
-            // convergence criteria
-            if ( (pvec1[i]-pvec1[i-1])*(pvec1[i]-pvec1[i-1]) 
-                + (pvec2[i]-pvec2[i-1])*(pvec2[i]-pvec2[i-1]) < tol ){
-                return {pvec1[i], pvec2[i]};
+            double lo = breaks[i], hi = breaks[i + 1];
+            double fHi = f(hi);
+            if (std::abs(fLo) < zeroTol)
+            {
+                if (numRoots == 0 || roots[numRoots - 1] != lo)
+                    roots[numRoots++] = lo;
             }
-            i++;
+            else if (std::abs(fHi) >= zeroTol && (fLo < 0) != (fHi < 0))
+            {
+                double a = lo, b = hi, fa = fLo;
+                for (int j = 0; j < maxBisections && b - a > zeroTol; ++j)
+                {
+                    double mid = 0.5 * (a + b), fMid = f(mid);
+                    if ((fMid < 0) == (fa < 0))
+                    {
+                        a = mid;
+                        fa = fMid;
+                    }
+                    else
+                    {
+                        b = mid;
+                    }
+                }
+                roots[numRoots++] = 0.5 * (a + b);
+            }
+            fLo = fHi;
         }
-        return {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN()};
+        if (numRoots < NR && numBreaks > 1 && std::abs(fLo) < zeroTol)
+            roots[numRoots++] = breaks[numBreaks - 1];
+        return numRoots;
     }
 
     /**
-     * @brief 
-     * 
+     * @brief Solve for trochoid BBB paths.
+     *
+     * The problem is solved in the air-relative frame, where the trochoids become circular arcs and the target drifts
+     * with velocity -wind_ratio along the x axis (Wu and Chen, "Closed-Form Solutions for Minimum-Time Paths of Dubins
+     * Airplane in Steady Wind", 2024). Let alpha, beta, gamma be the angles of the three arcs and c1, c3(T) the centers
+     * of the first and last circle. Since the middle circle is tangent to both, |c3(T) - c1| = 4 r sin(beta / 2), and
+     * the heading constraint gives T = r (c + 2 beta + 2 pi k). Squaring yields a single equation in beta,
+     *
+     *   G(beta) = a1 beta^2 + a2 beta + a3 cos(beta) + a4 = 0,
+     *
+     * whose roots on [0, 2 pi] are all found with the improved bisection method (Algorithm 1 in Wu and Chen). G'' only
+     * vanishes at cos(beta) = wind_ratio^2, so the intervals on which G' is monotonic are known in closed form. alpha
+     * and gamma then follow from the direction of c3 - c1 and the heading constraint.
+     *
      * @param x0 Start position x
      * @param y0 Start position y
      * @param phit1 Start heading
@@ -535,52 +531,84 @@ namespace
      * @param periodic Whether the path is periodic
      * @param path Computed path object
      */
-    void trochoidBBB(double x0, double y0, double phit1, double xf, double yf, double phif, double delta_1, double radius, double wind_ratio, bool periodic, TrochoidStateSpace::PathType &path) {
-        double omega = (1/radius);
-        double t2pi = twopi * radius;
+    void trochoidBBB(double x0, double y0, double phit1, double xf, double yf, double phif, double delta_1,
+                     double radius, double wind_ratio, bool periodic, TrochoidStateSpace::PathType &path)
+    {
+        const double w = wind_ratio;
+        const double xt10 = x0 - delta_1 * radius * sin(phit1);
+        const double yt10 = y0 + delta_1 * radius * cos(phit1);
 
-        double xt10 = x0 - 1.0/(delta_1*omega)*sin(phit1);
-        double yt10 = y0 + 1.0/(delta_1*omega)*cos(phit1);
+        // vector from the first circle center to the last circle center at T = 0, normalized by radius
+        const double xc = (xf - delta_1 * radius * sin(phif) - xt10) / radius;
+        const double yc = (yf + delta_1 * radius * cos(phif) - yt10) / radius;
 
-        double delta_2 = - delta_1;
+        // total turning, alpha + gamma = c + beta + 2 pi k
+        double c = fmod(delta_1 * (phif - phit1), twopi);
+        if (c < 0)
+            c += twopi;
 
-        // test a grid of initial conditions, grid resolution
-        constexpr int numTestPts = 10;
-        std::array<std::array<double, 3>, numTestPts * numTestPts> rootsComputed;
-        double sameRootEpsilon = 0.001;
-        for (int kint = -2; kint < 3; kint++){
-            double k = (double)kint;
-            for ( int l = 0; l < numTestPts; l++){
-            for ( int n = 0; n < numTestPts; n++){
-                bool rootAlreadyfound = false;
-                // initial guess
-                double tA_test = (double)(l+1)*t2pi/numTestPts;
-                double T_test = (double)(n+1)*3*t2pi/numTestPts;
-                auto [tA, T] =
-                    fixedpointBBB(tA_test, T_test, delta_1, k, xt10, yt10, phit1, xf, yf, phif, radius, wind_ratio);
-                double tB = tA + T / 2 + (phif - phit1 + k * twopi) / (2 * delta_2 * omega);
+        // G'' (beta) = 8 (w^2 - cos(beta)) vanishes at most twice on [0, 2 pi]
+        std::array<double, 4> secondDerivBreaks;
+        std::size_t numSecondDerivBreaks = 0;
+        secondDerivBreaks[numSecondDerivBreaks++] = 0.0;
+        if (w * w < 1.0)
+        {
+            double b = std::acos(w * w);
+            secondDerivBreaks[numSecondDerivBreaks++] = b;
+            secondDerivBreaks[numSecondDerivBreaks++] = twopi - b;
+        }
+        secondDerivBreaks[numSecondDerivBreaks++] = twopi;
 
-                int curRow = (l)*numTestPts+(n);
-                // check if the root has already been computed 
-                if ( l > 0 || n > 0 ){
-                    for (int i = 0; i < curRow; i++){
-                        if (    fabs( rootsComputed[i][0] - tA ) <= sameRootEpsilon 
-                            && fabs( rootsComputed[i][1] - tB ) <= sameRootEpsilon 
-                            && fabs( rootsComputed[i][2] - T ) <= sameRootEpsilon ){
-                        rootAlreadyfound = true;
-                        } 
-                    }
-                }
-                // store the computed roots
-                rootsComputed[curRow] = {tA, tB, T};
+        // alpha + gamma in [0, 4 pi) and c + beta in [0, 4 pi] restrict k to {-1, 0, 1}
+        for (int k = -1; k <= 1; ++k)
+        {
+            // horizontal center offset at T = r (c + 2 pi k), the remaining drift is -2 w beta
+            const double e = xc - w * (c + twopi * k);
+            auto G = [&](double beta)
+            { return 4. * w * w * beta * beta - 4. * w * e * beta + e * e + yc * yc - 8. + 8. * cos(beta); };
+            auto dG = [&](double beta) { return 8. * w * w * beta - 4. * w * e - 8. * sin(beta); };
 
-                // if the root is unique
-                if ( !rootAlreadyfound ){
-                    checkConditionsBBB(delta_1, tA, tB, T, xt10, yt10, phit1, xf, yf, phif, radius, wind_ratio, periodic, path);
-                }
+            // G' is monotonic between consecutive roots of G'', hence has at most 3 roots (+1 at 2 pi)
+            std::array<double, 4> dGRoots;
+            std::size_t numDGRoots = monotonicIntervalRoots(dG, secondDerivBreaks, numSecondDerivBreaks, dGRoots);
+
+            // G is monotonic between consecutive roots of G'
+            std::array<double, 6> firstDerivBreaks;
+            std::size_t numFirstDerivBreaks = 0;
+            firstDerivBreaks[numFirstDerivBreaks++] = 0.0;
+            for (std::size_t i = 0; i < numDGRoots; ++i)
+                if (dGRoots[i] > firstDerivBreaks[numFirstDerivBreaks - 1] && dGRoots[i] < twopi)
+                    firstDerivBreaks[numFirstDerivBreaks++] = dGRoots[i];
+            firstDerivBreaks[numFirstDerivBreaks++] = twopi;
+
+            std::array<double, 6> betaRoots;
+            std::size_t numBetaRoots = monotonicIntervalRoots(G, firstDerivBreaks, numFirstDerivBreaks, betaRoots);
+
+            for (std::size_t i = 0; i < numBetaRoots; ++i)
+            {
+                const double beta = betaRoots[i];
+                const double T = radius * (c + 2. * beta + twopi * k);
+                if (T < 0)
+                    continue;
+                // c3 - c1 = 4 r sin(beta / 2) (cos(psi), sin(psi)) with psi = phi1 - delta_1 beta / 2
+                const double psi = atan2(yc, xc - w * T / radius);
+                const double phi1 = psi + delta_1 * beta / 2.;
+                const double phi2 = phi1 - delta_1 * beta;
+                double alpha = fmod(delta_1 * (phi1 - phit1), twopi);
+                if (alpha < 0)
+                    alpha += twopi;
+                double gamma = fmod(delta_1 * (phif - phi2), twopi);
+                if (gamma < 0)
+                    gamma += twopi;
+                // the winding of alpha and gamma must match k; this rejects roots of G belonging to another k
+                if (std::abs(alpha + gamma - (c + beta + twopi * k)) > 1e-6)
+                    continue;
+                const double tA = radius * alpha;
+                const double tB = tA + radius * beta;
+                checkConditionsBBB(delta_1, tA, tB, T, xt10, yt10, phit1, xf, yf, phif, radius, wind_ratio, periodic,
+                                   path);
             }
-            }
-        }  
+        }
     }
 
     bool isLongPathCase(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double /* wind_ratio */)
