@@ -147,6 +147,35 @@ namespace ompl
             /** \brief Return a shortest Dubins path for a vehicle with given turning radius */
             static PathType getPath(const State *state1, const State *state2, double radius, double wind_ratio, double wind_heading, bool periodic=false);
 
+            /** \brief Return the shortest periodic (closed-loop) path starting and ending at state1.
+                A positive \e direction selects left turning loops, otherwise right turning loops. */
+            PathType getPeriodicPath(const State *state1, double direction) const;
+            static PathType getPeriodicPath(const State *state1, double direction, double radius, double wind_ratio, double wind_heading);
+
+            double getMinTurnRadius() const
+            {
+                return rho_;
+            }
+            double getWindRatio() const
+            {
+                return eta_;
+            }
+            double getWindHeading() const
+            {
+                return psi_w_;
+            }
+
+            static PathType periodicTrochoidLRL(double x0, double y0, double phi0, double radius, double wind_ratio);
+            static PathType periodicTrochoidRLR(double x0, double y0, double phi0, double radius, double wind_ratio);
+
+            /** \brief Individual path type solvers in the trochoid (wind-aligned) frame */
+            static PathType trochoidRSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidRSL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLSR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidLRL(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+            static PathType trochoidRLR(double x0, double y0, double phi0, double xf, double yf, double phif, double radius, double wind_ratio, bool periodic);
+
         protected:
             /** \brief Turning radius */
             double rho_;

@@ -71,14 +71,17 @@ namespace ompl::base
         class PathType
         {
         public:
-            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ,
-                     unsigned int numTurns = 0, double periodicPathLength = 0.)
-              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ),
-                numTurns_(numTurns), periodicPathLength_(periodicPathLength)
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double verticalWindRatio,
+                     unsigned int numTurns = 0, std::optional<TrochoidStateSpace::PathType> periodic_path = std::nullopt)
+              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), verticalWindRatio_(verticalWindRatio), numTurns_(numTurns)
             {
+                if (periodic_path)
+                {
+                    periodic_path_ = *periodic_path;
+                }
             }
-            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double phi)
-              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), phi_(phi)
+            PathType(TrochoidStateSpace::PathType const &path, double turnRadius, double windRatio, double windHeading, double deltaZ, double verticalWindRatio, double phi)
+              : path_(path), turnRadius_(turnRadius), windRatio_(windRatio), windHeading_(windHeading), deltaZ_(deltaZ), verticalWindRatio_(verticalWindRatio), phi_(phi)
             {
             }
             double length() const;
@@ -88,13 +91,14 @@ namespace ompl::base
             friend std::ostream &operator<<(std::ostream &os, const PathType &path);
 
             TrochoidStateSpace::PathType path_;
+            TrochoidStateSpace::PathType periodic_path_;
             double turnRadius_{1.};
             double windRatio_{0.};
             double windHeading_{0.};
             double deltaZ_;
+            double verticalWindRatio_{0.};
             double phi_{0.};
             unsigned int numTurns_{0};
-            double periodicPathLength_{0.};
         };
 
         /** A state in R^3 x SO(2): (x, y, z, yaw) */
@@ -120,7 +124,7 @@ namespace ompl::base
             }
         };
 
-        TrochoidAirplaneStateSpace(double turningRadius = 1.0, double windRatio = 0.0, double windHeading = 0.0, double maxPitch = boost::math::double_constants::sixth_pi);
+        TrochoidAirplaneStateSpace(double turningRadius = 1.0, double windRatio = 0.0, double windHeading = 0.0, double maxPitch = boost::math::double_constants::sixth_pi, double verticalWindRatio = 0.0);
         ~TrochoidAirplaneStateSpace() override = default;
 
         bool isMetricSpace() const override
@@ -198,13 +202,17 @@ namespace ompl::base
          * \param state2 end state
          * \return a 3D Dubins path if one was found, std::nullopt_t otherwise
          */
-        PathType getPath(const State *state1, const State *state2) const;
+         std::optional<PathType> getPath(const State *state1, const State *state2) const;
+
+         TrochoidStateSpace& getTrochoidStateSpace() {
+            return trochoidSpace_;
+         }
 
     protected:
         /**
          * \brief Compute the SE(2) state after making a turn
          */
-        void turn(const State *from, double turnRadius, double angle, State *state) const;
+        void turn(const State *from, double turnRadius, double windRatio, double windHeading, double angle, State *state) const;
 
         /** Turning radius */
         double rho_;
@@ -214,6 +222,9 @@ namespace ompl::base
 
         /** Wind heading */
         double psi_;
+
+        /** Vertical wind ratio */
+        double eta_z_;
 
         /** Tan(pitch), where pitch is the maximum pitch in radians */
         double tanMaxPitch_;
